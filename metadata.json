@@ -1,0 +1,6 @@
+{
+  "name": "Poker GTO",
+  "description": "Screen capture and real-time Gemini AI Texas Hold'em poker move advisor with ultra-low latency.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

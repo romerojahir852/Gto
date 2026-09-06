@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Outer poker chip circular border -->
+    <path
+        android:pathData="M54,26 A28,28 0 1 1 53.9,26"
+        android:strokeWidth="3"
+        android:strokeColor="#FFD700" />
+    <!-- Chip inner rim -->
+    <path
+        android:pathData="M54,32 A22,22 0 1 1 53.9,32"
+        android:strokeWidth="1.5"
+        android:strokeColor="#4DFFD700" />
+    <!-- Central Bold Spade Symbol -->
+    <path
+        android:fillColor="#FFD700"
+        android:pathData="M54,36 C50,42 41,47 41,55 C41,60.5 45.5,64 50,64 C52.2,64 53.6,63 54,62 C54.4,63 55.8,64 58,64 C62.5,64 67,60.5 67,55 C67,47 58,42 54,36 Z" />
+    <!-- Spade base / stem -->
+    <path
+        android:fillColor="#FFD700"
+        android:pathData="M52.5,61 L55.5,61 L58,70 L50,70 Z" />
+</vector>
+
