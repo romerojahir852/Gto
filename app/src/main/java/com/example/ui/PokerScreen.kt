@@ -1,5 +1,13 @@
 package com.example.ui
 
+import com.example.ui.theme.BgWhite
+import com.example.ui.theme.BgSoft
+import com.example.ui.theme.Ink
+import com.example.ui.theme.Ink2
+import com.example.ui.theme.Ink3
+import com.example.ui.theme.Line
+import com.example.ui.theme.Line2
+
 import android.app.Activity
 import android.content.Context
 import android.content.Intent
@@ -86,6 +94,8 @@ import com.example.service.ScreenCaptureService
 import com.example.ui.components.PRESET_HANDS
 import com.example.ui.components.PokerCardBadge
 import com.example.ui.components.PokerHandPreset
+import com.example.ui.components.BackgroundGeometry
+import com.example.ui.components.BottomActionBar
 import com.example.ui.components.PokerHudOverlay
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -144,61 +154,57 @@ fun PokerScreen(
                 title = {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        Surface(
-                            shape = CircleShape,
-                            color = Color(0xFF00E676).copy(alpha = 0.2f),
-                            modifier = Modifier.size(34.dp)
+                        Box(
+                            modifier = Modifier
+                                .size(38.dp)
+                                .clip(CircleShape)
+                                .background(Ink)
+                                .border(1.dp, Line, CircleShape),
+                            contentAlignment = Alignment.Center
                         ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                Text(
-                                    text = "♠",
-                                    color = Color(0xFF00E676),
-                                    fontSize = 20.sp,
-                                    fontWeight = FontWeight.Black
-                                )
-                            }
-                        }
-                        Column {
                             Text(
-                                text = "Poker GTO Vision",
-                                color = Color.White,
+                                text = "♠",
+                                color = BgWhite,
                                 fontSize = 18.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                            Text(
-                                text = "Gemini AI Texas Hold'em Advisor (<2s)",
-                                color = Color(0xFF9CA3AF),
-                                fontSize = 11.sp
+                                fontWeight = FontWeight.Black
                             )
                         }
+                        Text(
+                            text = "POKER GTO VISION",
+                            color = Ink,
+                            fontFamily = androidx.compose.ui.text.font.FontFamily.Default,
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 13.sp,
+                            letterSpacing = 0.28.sp
+                        )
                     }
                 },
                 actions = {
-                    Surface(
-                        shape = RoundedCornerShape(12.dp),
-                        color = if (isServiceRunning) Color(0xFF00E676).copy(alpha = 0.2f) else Color(0xFF374151),
+                    androidx.compose.material3.Surface(
+                        shape = RoundedCornerShape(999.dp),
+                        color = if (isServiceRunning) Color(0xFFECFDF5) else Color(0xFFF3F4F6),
                         border = androidx.compose.foundation.BorderStroke(
                             1.dp,
-                            if (isServiceRunning) Color(0xFF00E676) else Color(0xFF4B5563)
+                            if (isServiceRunning) Color(0xFFA7F3D0) else Color(0xFFDCDCDC)
                         ),
                         modifier = Modifier.padding(end = 12.dp)
                     ) {
                         Row(
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
                             Box(
                                 modifier = Modifier
-                                    .size(8.dp)
+                                    .size(6.dp)
                                     .clip(CircleShape)
-                                    .background(if (isServiceRunning) Color(0xFF00E676) else Color(0xFF9CA3AF))
+                                    .background(if (isServiceRunning) Color(0xFF10B981) else Ink3)
                             )
                             Text(
-                                text = if (isServiceRunning) "CAPTURA ACTIVA" else "STANDBY",
-                                color = if (isServiceRunning) Color(0xFF00E676) else Color(0xFF9CA3AF),
+                                text = if (isServiceRunning) "Captura activa" else "Captura inactiva",
+                                color = if (isServiceRunning) Color(0xFF047857) else Ink3,
                                 fontSize = 10.sp,
                                 fontWeight = FontWeight.Bold
                             )
@@ -206,170 +212,265 @@ fun PokerScreen(
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color(0xFF0A140F)
+                    containerColor = BgWhite.copy(alpha = 0.92f)
                 )
             )
         },
-        containerColor = Color(0xFF070D0A),
+        bottomBar = { BottomActionBar(isServiceRunning = isServiceRunning, isAnalyzing = isAnalyzing, onAnalyzeNow = { if (isServiceRunning) viewModel.triggerScreenCapture() else viewModel.analyzeCurrentPreset() }) },
+        containerColor = BgWhite,
         modifier = modifier.fillMaxSize()
     ) { innerPadding ->
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
-                .padding(horizontal = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            item { Spacer(modifier = Modifier.height(4.dp)) }
+        Box(modifier = Modifier.fillMaxSize()) {
+            BackgroundGeometry(modifier = Modifier.fillMaxSize())
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding)
+                    .padding(horizontal = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                item { Spacer(modifier = Modifier.height(4.dp)) }
 
-            // 1. Street Mode Selection (Preflop, Postflop, GTO Ultra-Rápido)
-            item {
-                StreetModeSelector(
-                    currentStreet = selectedStreet,
-                    onStreetSelected = { viewModel.setStreet(it) }
-                )
-            }
-
-            // 2. Selector de Unidad de Mesa (Ciegas Grandes BB vs Fichas/Cash $) y Memoria GTO
-            item {
-                BettingUnitSelectorCard(
-                    currentUnit = handState.bettingUnit,
-                    jugadores = handState.jugadores,
-                    posicion = handState.posicion,
-                    dealerPosition = handState.dealerPosition,
-                    tablePositionsSummary = handState.tablePositionsSummary,
-                    onUnitSelected = { PokerGameStateManager.setBettingUnit(it) },
-                    boteDisplay = handState.displayBote,
-                    apuestaDisplay = handState.displayApuestaRival
-                )
-            }
-
-            // 2. Main Live Results Overlay Card (Cards, Equity bar, Outs, GTO Pill)
-            item {
-                PokerHudOverlay(
-                    result = latestResult,
-                    isAnalyzing = isAnalyzing
-                )
-            }
-
-            // 3. Floating Overlay (WindowManager FloatingActionButton + Nube Card)
-            item {
-                FloatingOverlayControlCard(
-                    canDrawOverlays = canDrawOverlays,
-                    isServiceRunning = isServiceRunning,
-                    onRequestOverlayPermission = {
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                            val intent = Intent(
-                                Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                                Uri.parse("package:${context.packageName}")
-                            )
-                            overlayPermissionLauncher.launch(intent)
-                        }
-                    },
-                    onLaunchOverlay = {
-                        if (isServiceRunning) {
-                            ScreenCaptureService.showFloatingOverlay()
-                        } else {
-                            // Start foreground service with overlay action
-                            val intent = Intent(context, ScreenCaptureService::class.java).apply {
-                                action = ScreenCaptureService.ACTION_START
-                            }
-                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                                context.startForegroundService(intent)
-                            } else {
-                                context.startService(intent)
-                            }
-                        }
-                    },
-                    onTriggerSimulation = {
-                        if (!isServiceRunning) {
-                            val intent = Intent(context, ScreenCaptureService::class.java).apply {
-                                action = ScreenCaptureService.ACTION_START
-                            }
-                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                                context.startForegroundService(intent)
-                            } else {
-                                context.startService(intent)
-                            }
-                        }
-                        ScreenCaptureService.triggerFloatingAnalysis()
-                    }
-                )
-            }
-
-            // 4. Universal Default Prompt & Architecture Specs
-            item {
-                UniversalPromptCard()
-            }
-
-            // 3. Quick Action Controls (Capture, Service toggle)
-            item {
-                ActionControlCard(
-                    isServiceRunning = isServiceRunning,
-                    isAnalyzing = isAnalyzing,
-                    onStartCapture = {
-                        val mpManager = context.getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
-                        mediaProjectionLauncher.launch(mpManager.createScreenCaptureIntent())
-                    },
-                    onStopCapture = {
-                        val intent = Intent(context, ScreenCaptureService::class.java).apply {
-                            action = ScreenCaptureService.ACTION_STOP
-                        }
-                        context.startService(intent)
-                    },
-                    onAnalyzeNow = {
-                        if (isServiceRunning) {
-                            viewModel.triggerScreenCapture()
-                        } else {
-                            viewModel.analyzeCurrentPreset()
-                        }
-                    }
-                )
-            }
-
-            // 4. Interactive Poker Scenario Simulator
-            item {
-                SimulatorSection(
-                    selectedPreset = selectedPreset,
-                    onPresetSelected = { viewModel.selectPreset(it) },
-                    previewBitmap = currentPreviewBitmap ?: selectedPreset.renderBitmap()
-                )
-            }
-
-            // 5. Hand History Section
-            if (history.isNotEmpty()) {
                 item {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        com.example.ui.components.Eyebrow(text = "Fase de la mano")
                         Text(
-                            text = "Historial de Manos Evaluadas",
-                            color = Color.White,
-                            fontSize = 15.sp,
-                            fontWeight = FontWeight.Bold
+                            text = "Prompt optimizado GTO",
+                            color = Ink,
+                            fontFamily = androidx.compose.ui.text.font.FontFamily.Default,
+                            fontWeight = FontWeight.Light,
+                            fontSize = 24.sp,
+                            letterSpacing = 0.02.sp
                         )
-                        IconButton(
-                            onClick = { viewModel.clearHistory() },
-                            modifier = Modifier.size(28.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Delete,
-                                contentDescription = "Limpiar historial",
-                                tint = Color(0xFF9CA3AF),
-                                modifier = Modifier.size(18.dp)
-                            )
-                        }
+                        com.example.ui.components.SectionSub(
+                            text = "Elige la fase o usa el simulador. El prompt se adapta al contexto para extraer la jugada GTO."
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        StreetModeSelector(
+                            currentStreet = selectedStreet,
+                            onStreetSelected = { viewModel.setStreet(it) }
+                        )
                     }
                 }
 
-                items(history) { item ->
-                    HistoryItemCard(result = item)
+                item {
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        com.example.ui.components.Eyebrow(text = "Memoria GTO")
+                        Text(
+                            text = "Estado de la mesa",
+                            color = Ink,
+                            fontFamily = androidx.compose.ui.text.font.FontFamily.Default,
+                            fontWeight = FontWeight.Light,
+                            fontSize = 24.sp,
+                            letterSpacing = 0.02.sp
+                        )
+                        com.example.ui.components.SectionSub(
+                            text = "Define jugadores, dealer, tu posición y la unidad de apuestas. El prompt se inyecta con este contexto."
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        BettingUnitSelectorCard(
+                            currentUnit = handState.bettingUnit,
+                            jugadores = handState.jugadores,
+                            posicion = handState.posicion,
+                            dealerPosition = handState.dealerPosition,
+                            tablePositionsSummary = handState.tablePositionsSummary,
+                            onUnitSelected = { PokerGameStateManager.setBettingUnit(it) },
+                            boteDisplay = handState.displayBote,
+                            apuestaDisplay = handState.displayApuestaRival
+                        )
+                    }
                 }
-            }
 
-            item { Spacer(modifier = Modifier.height(24.dp)) }
+                item {
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        com.example.ui.components.Eyebrow(text = "Resultado en vivo")
+                        Text(
+                            text = "Jugada GTO recomendada",
+                            color = Ink,
+                            fontFamily = androidx.compose.ui.text.font.FontFamily.Default,
+                            fontWeight = FontWeight.Light,
+                            fontSize = 24.sp,
+                            letterSpacing = 0.02.sp
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        PokerHudOverlay(
+                            result = latestResult,
+                            isAnalyzing = isAnalyzing
+                        )
+                    }
+                }
+
+                item {
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        com.example.ui.components.Eyebrow(text = "Overlay flotante")
+                        Text(
+                            text = "Nube sobre la mesa",
+                            color = Ink,
+                            fontFamily = androidx.compose.ui.text.font.FontFamily.Default,
+                            fontWeight = FontWeight.Light,
+                            fontSize = 24.sp,
+                            letterSpacing = 0.02.sp
+                        )
+                        com.example.ui.components.SectionSub(
+                            text = "Permite mostrar el botón flotante y la nube de resultados sobre cualquier app de poker."
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        FloatingOverlayControlCard(
+                            canDrawOverlays = canDrawOverlays,
+                            isServiceRunning = isServiceRunning,
+                            onRequestOverlayPermission = {
+                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                                    val intent = Intent(
+                                        Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                                        Uri.parse("package:${context.packageName}")
+                                    )
+                                    overlayPermissionLauncher.launch(intent)
+                                }
+                            },
+                            onLaunchOverlay = {
+                                if (isServiceRunning) {
+                                    ScreenCaptureService.showFloatingOverlay()
+                                } else {
+                                    val intent = Intent(context, ScreenCaptureService::class.java).apply {
+                                        action = ScreenCaptureService.ACTION_START
+                                    }
+                                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                                        context.startForegroundService(intent)
+                                    } else {
+                                        context.startService(intent)
+                                    }
+                                }
+                            },
+                            onTriggerSimulation = {
+                                if (!isServiceRunning) {
+                                    val intent = Intent(context, ScreenCaptureService::class.java).apply {
+                                        action = ScreenCaptureService.ACTION_START
+                                    }
+                                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                                        context.startForegroundService(intent)
+                                    } else {
+                                        context.startService(intent)
+                                    }
+                                }
+                                ScreenCaptureService.triggerFloatingAnalysis()
+                            }
+                        )
+                    }
+                }
+
+                item {
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        com.example.ui.components.Eyebrow(text = "Pilares del prompt")
+                        Text(
+                            text = "Arquitectura espacial",
+                            color = Ink,
+                            fontFamily = androidx.compose.ui.text.font.FontFamily.Default,
+                            fontWeight = FontWeight.Light,
+                            fontSize = 24.sp,
+                            letterSpacing = 0.02.sp
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        UniversalPromptCard()
+                    }
+                }
+
+                item {
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        com.example.ui.components.Eyebrow(text = "Controles rápidos")
+                        Text(
+                            text = "Captura y análisis",
+                            color = Ink,
+                            fontFamily = androidx.compose.ui.text.font.FontFamily.Default,
+                            fontWeight = FontWeight.Light,
+                            fontSize = 24.sp,
+                            letterSpacing = 0.02.sp
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        ActionControlCard(
+                            isServiceRunning = isServiceRunning,
+                            isAnalyzing = isAnalyzing,
+                            onStartCapture = {
+                                val mpManager = context.getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
+                                mediaProjectionLauncher.launch(mpManager.createScreenCaptureIntent())
+                            },
+                            onStopCapture = {
+                                val intent = Intent(context, ScreenCaptureService::class.java).apply {
+                                    action = ScreenCaptureService.ACTION_STOP
+                                }
+                                context.startService(intent)
+                            },
+                            onAnalyzeNow = {
+                                if (isServiceRunning) {
+                                    viewModel.triggerScreenCapture()
+                                } else {
+                                    viewModel.analyzeCurrentPreset()
+                                }
+                            }
+                        )
+                    }
+                }
+
+                item {
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        com.example.ui.components.Eyebrow(text = "Simulador")
+                        Text(
+                            text = "Manos de prueba",
+                            color = Ink,
+                            fontFamily = androidx.compose.ui.text.font.FontFamily.Default,
+                            fontWeight = FontWeight.Light,
+                            fontSize = 24.sp,
+                            letterSpacing = 0.02.sp
+                        )
+                        com.example.ui.components.SectionSub(
+                            text = "Flush Draw, Gutshot, OESD, Big Slick. Sin capturar pantalla real."
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        SimulatorSection(
+                            selectedPreset = selectedPreset,
+                            onPresetSelected = { viewModel.selectPreset(it) },
+                            previewBitmap = currentPreviewBitmap ?: selectedPreset.renderBitmap()
+                        )
+                    }
+                }
+
+                if (history.isNotEmpty()) {
+                    item {
+                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            com.example.ui.components.Eyebrow(text = "Historial")
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "Manos evaluadas",
+                                    color = Ink,
+                                    fontFamily = androidx.compose.ui.text.font.FontFamily.Default,
+                                    fontWeight = FontWeight.Light,
+                                    fontSize = 24.sp,
+                                    letterSpacing = 0.02.sp
+                                )
+                                IconButton(
+                                    onClick = { viewModel.clearHistory() },
+                                    modifier = Modifier.size(28.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Delete,
+                                        contentDescription = "Limpiar historial",
+                                        tint = Ink3,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                    items(history) { item ->
+                        HistoryItemCard(result = item)
+                    }
+                }
+
+                item { Spacer(modifier = Modifier.height(24.dp)) }
+            }
         }
     }
 }
@@ -384,7 +485,7 @@ fun StreetModeSelector(
         modifier = modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(14.dp)),
-        color = Color(0xFF102118),
+        color = BgSoft,
         border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF1D3B2C))
     ) {
         Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -408,7 +509,7 @@ fun StreetModeSelector(
                             .clip(RoundedCornerShape(10.dp))
                             .clickable { onStreetSelected(street) }
                             .testTag("street_${street.name.lowercase()}_tab"),
-                        color = if (isSelected) Color(0xFF00E676) else Color(0xFF172D22),
+                        color = if (isSelected) Color(0xFF00E676) else BgSoft,
                         border = androidx.compose.foundation.BorderStroke(
                             1.dp,
                             if (isSelected) Color(0xFF00E676) else Color(0xFF264736)
@@ -430,7 +531,7 @@ fun StreetModeSelector(
                                     Street.POSTFLOP -> "Outs & Win %"
                                     Street.FAST_GTO -> "< 1s Directo"
                                 },
-                                color = if (isSelected) Color(0xFF1E3A2B) else Color(0xFF9CA3AF),
+                                color = if (isSelected) Color(0xFF1E3A2B) else Ink3,
                                 fontSize = 10.sp,
                                 textAlign = TextAlign.Center,
                                 maxLines = 1,
@@ -460,7 +561,7 @@ fun BettingUnitSelectorCard(
         modifier = modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(14.dp)),
-        color = Color(0xFF102118),
+        color = BgSoft,
         border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF1D3B2C))
     ) {
         Column(
@@ -528,7 +629,7 @@ fun BettingUnitSelectorCard(
                         ) {
                             Surface(
                                 shape = CircleShape,
-                                color = Color(0xFF1A3828),
+                                color = BgSoft,
                                 modifier = Modifier
                                     .size(28.dp)
                                     .testTag("dashboard_btn_dec_players")
@@ -546,7 +647,7 @@ fun BettingUnitSelectorCard(
 
                             Surface(
                                 shape = RoundedCornerShape(6.dp),
-                                color = Color(0xFF142B1F),
+                                color = BgSoft,
                                 border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF00E676))
                             ) {
                                 Text(
@@ -560,7 +661,7 @@ fun BettingUnitSelectorCard(
 
                             Surface(
                                 shape = CircleShape,
-                                color = Color(0xFF1A3828),
+                                color = BgSoft,
                                 modifier = Modifier
                                     .size(28.dp)
                                     .testTag("dashboard_btn_inc_players")
@@ -613,14 +714,14 @@ fun BettingUnitSelectorCard(
                                 val isDealer = dealerPosition.equals(dPos, ignoreCase = true)
                                 Surface(
                                     shape = RoundedCornerShape(4.dp),
-                                    color = if (isDealer) Color(0xFFFFD700) else Color(0xFF1C281F),
+                                    color = if (isDealer) Color(0xFFFFD700) else Line2,
                                     modifier = Modifier
                                         .testTag("dashboard_dealer_$dPos")
                                         .clickable { GTOStateManager.setDealerPosition(dPos) }
                                 ) {
                                     Text(
                                         text = dPos,
-                                        color = if (isDealer) Color.Black else Color(0xFF94A3B8),
+                                        color = if (isDealer) Color.Black else Ink3,
                                         fontSize = 9.sp,
                                         fontWeight = if (isDealer) FontWeight.Black else FontWeight.Medium,
                                         modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
@@ -638,7 +739,7 @@ fun BettingUnitSelectorCard(
                     ) {
                         Text(
                             text = "Mi Posición:",
-                            color = Color(0xFF94A3B8),
+                            color = Ink3,
                             fontSize = 11.sp
                         )
 
@@ -672,7 +773,7 @@ fun BettingUnitSelectorCard(
                     ) {
                         Text(
                             text = "Mesa: $tablePositionsSummary",
-                            color = Color(0xFF64748B),
+                            color = Ink3,
                             fontSize = 9.sp,
                             modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                         )
@@ -682,7 +783,7 @@ fun BettingUnitSelectorCard(
 
             Text(
                 text = "Unidad de Apuestas de la Mesa:",
-                color = Color(0xFF9CA3AF),
+                color = Ink3,
                 fontSize = 11.sp
             )
 
@@ -698,7 +799,7 @@ fun BettingUnitSelectorCard(
                         .clip(RoundedCornerShape(10.dp))
                         .clickable { onUnitSelected(BettingUnit.BB) }
                         .testTag("unit_selector_bb"),
-                    color = if (isBb) Color(0xFF00E676) else Color(0xFF172D22),
+                    color = if (isBb) Color(0xFF00E676) else BgSoft,
                     border = androidx.compose.foundation.BorderStroke(
                         1.dp,
                         if (isBb) Color(0xFF00E676) else Color(0xFF264736)
@@ -717,7 +818,7 @@ fun BettingUnitSelectorCard(
                         )
                         Text(
                             text = "ej. 150 BB / 25 BB",
-                            color = if (isBb) Color(0xFF1E3A2B) else Color(0xFF9CA3AF),
+                            color = if (isBb) Color(0xFF1E3A2B) else Ink3,
                             fontSize = 10.sp
                         )
                     }
@@ -731,7 +832,7 @@ fun BettingUnitSelectorCard(
                         .clip(RoundedCornerShape(10.dp))
                         .clickable { onUnitSelected(BettingUnit.CHIPS) }
                         .testTag("unit_selector_chips"),
-                    color = if (isChips) Color(0xFFFFD700) else Color(0xFF172D22),
+                    color = if (isChips) Color(0xFFFFD700) else BgSoft,
                     border = androidx.compose.foundation.BorderStroke(
                         1.dp,
                         if (isChips) Color(0xFFFFD700) else Color(0xFF264736)
@@ -750,7 +851,7 @@ fun BettingUnitSelectorCard(
                         )
                         Text(
                             text = "ej. $1,500 / $250",
-                            color = if (isChips) Color(0xFF382A0F) else Color(0xFF9CA3AF),
+                            color = if (isChips) Color(0xFF382A0F) else Ink3,
                             fontSize = 10.sp
                         )
                     }
@@ -771,7 +872,7 @@ fun BettingUnitSelectorCard(
                 ) {
                     Text(
                         text = "Valores actuales en Nube:",
-                        color = Color(0xFF9CA3AF),
+                        color = Ink3,
                         fontSize = 10.sp
                     )
                     Text(
@@ -799,7 +900,7 @@ fun ActionControlCard(
         modifier = modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(14.dp)),
-        color = Color(0xFF102118),
+        color = BgSoft,
         border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF1D3B2C))
     ) {
         Column(
@@ -882,7 +983,7 @@ fun SimulatorSection(
         modifier = modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(14.dp)),
-        color = Color(0xFF0F1E16),
+        color = BgSoft,
         border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF1C3A2A))
     ) {
         Column(
@@ -913,7 +1014,7 @@ fun SimulatorSection(
                 }
                 Text(
                     text = "Prueba Directa en Emulador",
-                    color = Color(0xFF9CA3AF),
+                    color = Ink3,
                     fontSize = 11.sp
                 )
             }
@@ -947,7 +1048,7 @@ fun SimulatorSection(
                             )
                             Text(
                                 text = preset.description,
-                                color = Color(0xFF9CA3AF),
+                                color = Ink3,
                                 fontSize = 10.sp,
                                 maxLines = 1
                             )
@@ -985,7 +1086,7 @@ fun HistoryItemCard(
         modifier = modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp)),
-        color = Color(0xFF0E1A14),
+        color = BgSoft,
         border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF1A3325))
     ) {
         Row(
@@ -1008,7 +1109,7 @@ fun HistoryItemCard(
                     )
                     Text(
                         text = "• ${result.latencyMs} ms",
-                        color = Color(0xFF9CA3AF),
+                        color = Ink3,
                         fontSize = 11.sp
                     )
                 }
@@ -1072,7 +1173,7 @@ private fun FloatingOverlayControlCard(
 ) {
     Card(
         shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFF0F172A)),
+        colors = CardDefaults.cardColors(containerColor = BgSoft),
         border = androidx.compose.foundation.BorderStroke(1.5.dp, Color(0xFF1E293B)),
         modifier = Modifier.fillMaxWidth()
     ) {
@@ -1130,7 +1231,7 @@ private fun FloatingOverlayControlCard(
 
             Text(
                 text = "Permite mostrar el botón flotante arrastrable y el panel de resultados ('La Nube') sobre cualquier aplicación de poker o mesa en pantalla.",
-                color = Color(0xFF94A3B8),
+                color = Ink3,
                 fontSize = 12.sp,
                 lineHeight = 16.sp
             )
@@ -1252,7 +1353,7 @@ private fun UniversalPromptCard() {
 
             Surface(
                 shape = RoundedCornerShape(8.dp),
-                color = Color(0xFF05110B),
+                color = BgWhite,
                 border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF153322))
             ) {
                 val spatialPrompt = "Contexto GTO: Fase[\${state.fase}], JugadoresActivos[\${state.jugadores}], MiPosicion[\${state.posicion}], Bote[\${state.bote}]. Eres un escáner de póker estricto. REGLA 1 (CARTAS PROPIAS): Tus 2 cartas de la mano están SIEMPRE situadas en el cuadro de la PARTE INFERIOR. Selecciónalas como tus cartas propias. REGLA 2 (CARTAS COMUNITARIAS): Las cartas comunitarias (Flop, Turn, River) están alineadas exclusivamente en el CENTRO de la mesa. Responde ÚNICAMENTE con este formato Regex-ready: Cartas:[ValorPalo] | Mesa:[ValorPalo] | Outs:[Numero] | Win:[X]% | GTO:[Acción y Tamaño]. Cero explicaciones."

@@ -2,13 +2,21 @@ package com.example.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-val PokerGreenPrimary = Color(0xFF10B981)
-val PokerGreenSecondary = Color(0xFF34D399)
-val PokerGold = Color(0xFFFBBF24)
+val BgWhite = Color(0xFFFFFFFF)
+val BgSoft = Color(0xFFF8F9FA)
+val Ink = Color(0xFF111111)
+val Ink2 = Color(0xFF4A4A4A)
+val Ink3 = Color(0xFF666666)
+val Line = Color(0xFFE5E5E5)
+val Line2 = Color(0xFFDCDCDC)
+
+val PokerGreenPrimary = Color(0xFF111111)
+val PokerGreenSecondary = Color(0xFF4A4A4A)
+val PokerGold = Color(0xFF111111)
 val PokerCrimson = Color(0xFFEF4444)
 
-val PokerDarkBg = Color(0xFF070F0B)
-val PokerDarkSurface = Color(0xFF13221C)
-val PokerDarkSurfaceVariant = Color(0xFF192F26)
-val PokerTextPrimary = Color(0xFFF8FAFC)
-val PokerTextSecondary = Color(0xFF94A3B8)
+val PokerDarkBg = BgWhite
+val PokerDarkSurface = BgSoft
+val PokerDarkSurfaceVariant = BgWhite
+val PokerTextPrimary = Ink
+val PokerTextSecondary = Ink2

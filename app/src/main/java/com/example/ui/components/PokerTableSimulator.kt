@@ -1,4 +1,12 @@
-package com.example.ui.components
+package com.example.ui
+
+import com.example.ui.theme.BgWhite
+import com.example.ui.theme.BgSoft
+import com.example.ui.theme.Ink
+import com.example.ui.theme.Ink2
+import com.example.ui.theme.Ink3
+import com.example.ui.theme.Line
+import com.example.ui.theme.Line2.components
 
 import android.graphics.Bitmap
 import android.graphics.Canvas
@@ -112,7 +120,7 @@ fun PokerTableSimulator(
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = Color(0xFF0D1813)),
         border = CardDefaults.outlinedCardBorder().copy(
-            brush = androidx.compose.ui.graphics.SolidColor(Color(0xFF1E3A2E))
+            brush = androidx.compose.ui.graphics.SolidLine2
         )
     ) {
         Column(
@@ -140,7 +148,7 @@ fun PokerTableSimulator(
                         text = "Simulador de Mesa para Pruebas",
                         style = MaterialTheme.typography.titleSmall,
                         fontWeight = FontWeight.Bold,
-                        color = Color(0xFFF8FAFC)
+                        color = BgWhite
                     )
                 }
 
@@ -176,7 +184,7 @@ fun PokerTableSimulator(
                             modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
                             style = MaterialTheme.typography.labelMedium,
                             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                            color = if (isSelected) Color(0xFF09130E) else Color(0xFFE2E8F0)
+                            color = if (isSelected) BgWhite else Ink
                         )
                     }
                 }
@@ -187,7 +195,7 @@ fun PokerTableSimulator(
                     .fillMaxWidth()
                     .height(180.dp)
                     .clip(RoundedCornerShape(90.dp))
-                    .background(Color(0xFF0F261B))
+                    .background(BgSoft)
                     .border(6.dp, Color(0xFF4A3216), RoundedCornerShape(90.dp))
                     .border(2.dp, Color(0xFF1F4A37), RoundedCornerShape(90.dp))
                     .padding(12.dp),

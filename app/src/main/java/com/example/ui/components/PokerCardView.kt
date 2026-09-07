@@ -1,4 +1,12 @@
-package com.example.ui.components
+package com.example.ui
+
+import com.example.ui.theme.BgWhite
+import com.example.ui.theme.BgSoft
+import com.example.ui.theme.Ink
+import com.example.ui.theme.Ink2
+import com.example.ui.theme.Ink3
+import com.example.ui.theme.Line
+import com.example.ui.theme.Line2.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -45,7 +53,7 @@ fun PokerCardView(
             .shadow(4.dp, RoundedCornerShape(8.dp))
             .border(
                 width = if (isSelected) 2.dp else 1.dp,
-                color = if (isSelected) Color(0xFF10B981) else Color(0xFFCBD5E1),
+                color = if (isSelected) Color(0xFF10B981) else Line2,
                 shape = RoundedCornerShape(8.dp)
             )
             .clip(RoundedCornerShape(8.dp))
@@ -125,7 +133,7 @@ fun CardHandRow(
             Text(
                 text = label,
                 style = MaterialTheme.typography.labelMedium,
-                color = Color(0xFF94A3B8),
+                color = Ink3,
                 modifier = Modifier.padding(bottom = 4.dp)
             )
         }
@@ -137,14 +145,14 @@ fun CardHandRow(
                 Box(
                     modifier = Modifier
                         .size(width = cardWidth * 2 + 6.dp, height = cardHeight)
-                        .background(Color(0xFF1E293B).copy(alpha = 0.5f), RoundedCornerShape(8.dp))
-                        .border(1.dp, Color(0xFF334155), RoundedCornerShape(8.dp)),
+                        .background(BgSoft.copy(alpha = 0.5f), RoundedCornerShape(8.dp))
+                        .border(1.dp, Line2, RoundedCornerShape(8.dp)),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
                         text = "Sin cartas",
                         style = MaterialTheme.typography.bodySmall,
-                        color = Color(0xFF64748B)
+                        color = Ink3
                     )
                 }
             } else {

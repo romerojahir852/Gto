@@ -1,17 +1,15 @@
 package com.example.ui.theme
 
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 
-private val PokerColorScheme = darkColorScheme(
+private val PokerColorScheme = lightColorScheme(
     primary = PokerGreenPrimary,
-    onPrimary = Color(0xFF04130B),
+    onPrimary = BgWhite,
     secondary = PokerGold,
-    onSecondary = Color(0xFF1E1500),
-    tertiary = PokerCrimson,
-    onTertiary = Color.White,
+    onSecondary = BgWhite,
     background = PokerDarkBg,
     onBackground = PokerTextPrimary,
     surface = PokerDarkSurface,

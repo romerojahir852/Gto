@@ -4,42 +4,81 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.util.Log
 import com.example.BuildConfig
-import com.google.ai.client.generativeai.GenerativeModel
-import com.google.ai.client.generativeai.type.content
-import com.google.ai.client.generativeai.type.generationConfig
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.android.Android
+import io.ktor.client.request.headers
+import io.ktor.client.request.post
+import io.ktor.client.request.setBody
+import io.ktor.client.statement.bodyAsText
+import io.ktor.http.ContentType
+import io.ktor.http.contentType
+import io.ktor.client.plugins.HttpRequestTimeoutException
+import io.ktor.client.plugins.ResponseException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonArray
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.put
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.put
 import java.io.ByteArrayOutputStream
 
 class GeminiPokerRepository {
 
     companion object {
         private const val TAG = "GeminiPokerRepo"
-        // Strict 4000ms timeout for Gemini Vision calls
-        private const val TIMEOUT_MS = 4000L
+        // 3000ms cap: gemini-3.x Flash responde en 0.8-2.5s en condiciones normales.
+        private const val TIMEOUT_MS = 3000L
         private const val MAX_IMAGE_DIMENSION = 720
-        private const val JPEG_COMPRESSION_QUALITY = 70
+        private const val JPEG_COMPRESSION_QUALITY = 85
+        private const val ENDPOINT_BASE = "https://generativelanguage.googleapis.com/v1beta/models"
     }
 
     /**
-     * Ktor Client configurado con motor Android y timeouts defensivos de 4000ms
+     * Cascada de modelos Gemini 3.x. El primero que responda completo gana.
+     * gemini-3.8-flash y gemini-3.7-flash son los preferidos del usuario pero a
+     * veces devuelven 503/timeout por alta demanda. En ese caso se cae a
+     * gemini-3.5-flash-lite o gemini-3.1-flash-lite, que en pruebas reales
+     * entregan la respuesta completa en 500-800ms.
+     */
+    private val candidateModels = listOf(
+        "gemini-3.8-flash",
+        "gemini-3.7-flash",
+        "gemini-3.5-flash-lite",
+        "gemini-3.1-flash-lite"
+    )
+
+    /**
+     * Ktor HTTP client con timeouts defensivos de 3000ms.
      */
     private val ktorClient by lazy {
         HttpClient(Android) {
             engine {
-                connectTimeout = 4_000
-                socketTimeout = 4_000
+                connectTimeout = 3_000
+                socketTimeout = 3_000
             }
+            expectSuccess = false
         }
     }
 
+    private val json = Json {
+        ignoreUnknownKeys = true
+        isLenient = true
+    }
+
     /**
-     * Optimizes captured bitmap to sub-720p and compresses to JPEG 70%
-     * Executed strictly in Dispatchers.IO to never block the main thread.
+     * Optimizes captured bitmap to sub-720p and compresses to JPEG 85%.
+     * Subir de 70% a 85% reduce artefactos en palos (♠ ♥ ♦ ♣) que confunden
+     * a modelos Flash en modo de razonamiento rápido.
      */
     fun optimizeBitmap(original: Bitmap): Bitmap {
         val width = original.width
@@ -55,7 +94,6 @@ class GeminiPokerRepository {
             original
         }
 
-        // Compress to JPEG 70% to eliminate high bandwidth latency
         val stream = ByteArrayOutputStream()
         scaled.compress(Bitmap.CompressFormat.JPEG, JPEG_COMPRESSION_QUALITY, stream)
         val compressedBytes = stream.toByteArray()
@@ -67,12 +105,8 @@ class GeminiPokerRepository {
     }
 
     /**
-     * Prompt Espacial para Gemini Vision con detección integral de la partida:
-     * - Las 2 cartas propias están SIEMPRE en el cuadro inferior del recorte.
-     * - Las cartas comunitarias están alineadas en el centro (Flop/Turn/River).
-     * - Contabilizar automáticamente el número de jugadores activos en la mesa (2-9).
-     * - Detectar la ficha/botón del Dealer ('D' / 'BTN') y la posición del jugador.
-     * - Detectar fase de la partida: Preflop, Flop, Turn o River.
+     * Prompt Espacial para Gemini Vision con detección integral de la partida.
+     * Se mantiene COMPLETO (no se recorta) para máxima precisión del parser.
      */
     fun buildSurgicalPrompt(state: HandState): String {
         return "Contexto GTO: Fase[${state.fase}], Jugadores[${state.jugadores}], MiPosicion[${state.posicion}], Dealer[${state.dealerPosition}], Bote[${state.bote}]. " +
@@ -86,13 +120,13 @@ class GeminiPokerRepository {
 
     private data class GeminiCallResult(
         val text: String? = null,
+        val modelUsed: String? = null,
         val errorMessage: String? = null
     )
 
     /**
      * Analyzes poker screen frame 100% on Dispatchers.IO.
-     * Evaluates clean cropped bitmap with Gemini (gemini-1.5-flash prioritized)
-     * strictly bound to 4000ms timeout with zero crashes.
+     * Bound to 3000ms timeout with zero crashes.
      */
     suspend fun analyzeHand(
         bitmap: Bitmap,
@@ -102,7 +136,6 @@ class GeminiPokerRepository {
         val prompt = buildSurgicalPrompt(currentState)
         val apiKey = BuildConfig.GEMINI_API_KEY
 
-        // Si la clave no está configurada o sigue con el valor por defecto
         if (apiKey.isBlank() || apiKey == "MY_GEMINI_API_KEY") {
             val missingKeyMsg = "⚠️ Falta GEMINI_API_KEY en .env / Secrets"
             Log.w("GEMINI_INFO", missingKeyMsg)
@@ -120,7 +153,6 @@ class GeminiPokerRepository {
         }
 
         try {
-            // Compress and scale image strictly on IO
             val compressedBitmap = optimizeBitmap(bitmap)
 
             val callResult = withTimeout(TIMEOUT_MS) {
@@ -131,7 +163,7 @@ class GeminiPokerRepository {
             val responseText = callResult.text
 
             if (!responseText.isNullOrBlank()) {
-                Log.d("GEMINI_DEBUG", "RAW AI RESPONSE: $responseText")
+                Log.d("GEMINI_DEBUG", "RAW AI RESPONSE (${callResult.modelUsed}): $responseText")
                 val parsedState = parseSurgicalResponse(responseText, currentState, latency)
                 PokerGameStateManager.updateIncremental(
                     fase = parsedState.fase,
@@ -149,17 +181,12 @@ class GeminiPokerRepository {
                     rawText = responseText,
                     latencyMs = latency,
                     isSimulation = false,
-                    statusMessage = "Lectura IA exitosa (${latency}ms)"
+                    statusMessage = "Lectura IA exitosa (${latency}ms · ${callResult.modelUsed})"
                 )
                 Result.success(parsedState)
             } else {
-                val errorMsg = when {
-                    callResult.errorMessage?.contains("quota", ignoreCase = true) == true ||
-                    callResult.errorMessage?.contains("resource_exhausted", ignoreCase = true) == true -> "⚠️ Cuota Gemini agotada (Límite de peticiones)"
-                    callResult.errorMessage?.contains("API_KEY_INVALID", ignoreCase = true) == true -> "⚠️ Clave GEMINI_API_KEY inválida"
-                    else -> "⚠️ Error IA: ${callResult.errorMessage?.take(35) ?: "Sin lectura"}"
-                }
-                Log.w("GEMINI_ERROR", "Sin respuesta de IA: ${callResult.errorMessage}")
+                val errorMsg = "⚠️ Sin respuesta de IA: ${callResult.errorMessage?.take(40) ?: "vacía"}"
+                Log.w("GEMINI_ERROR", errorMsg)
                 val updatedState = currentState.copy(
                     statusMessage = errorMsg,
                     latencyMs = latency,
@@ -174,8 +201,8 @@ class GeminiPokerRepository {
             }
         } catch (e: TimeoutCancellationException) {
             val latency = System.currentTimeMillis() - startTime
-            Log.w("GEMINI_TIMEOUT", "TimeoutCancellationException (4000ms): Red lenta o timeout de Gemini.", e)
-            val timeoutMsg = "⚠️ Timeout (4s) de Gemini"
+            val timeoutMsg = "⚠️ Timeout (${TIMEOUT_MS}ms) - usando motor local"
+            Log.w("GEMINI_TIMEOUT", timeoutMsg)
             val timeoutState = currentState.copy(
                 statusMessage = timeoutMsg,
                 latencyMs = latency,
@@ -187,14 +214,26 @@ class GeminiPokerRepository {
                 latencyMs = latency
             )
             Result.success(timeoutState)
+        } catch (e: HttpRequestTimeoutException) {
+            val latency = System.currentTimeMillis() - startTime
+            val msg = "⚠️ Red lenta (timeout HTTP)"
+            Log.w("GEMINI_NET_TIMEOUT", msg, e)
+            val netState = currentState.copy(
+                statusMessage = msg,
+                latencyMs = latency,
+                isLoading = false,
+                isExpanded = true
+            )
+            PokerGameStateManager.updateIncremental(
+                statusMessage = msg,
+                latencyMs = latency
+            )
+            Result.success(netState)
         } catch (e: Throwable) {
             val latency = System.currentTimeMillis() - startTime
             val msg = e.message ?: e.javaClass.simpleName
             Log.e("GEMINI_ERROR", "Fallo general en analyzeHand: $msg", e)
-            val errorMsg = when {
-                msg.contains("quota", ignoreCase = true) || msg.contains("resource_exhausted", ignoreCase = true) -> "⚠️ Cuota Gemini agotada"
-                else -> "⚠️ Error: ${msg.take(35)}"
-            }
+            val errorMsg = "⚠️ Error: ${msg.take(35)}"
             val fallbackState = currentState.copy(
                 statusMessage = errorMsg,
                 latencyMs = latency,
@@ -220,9 +259,6 @@ class GeminiPokerRepository {
         handResult.map { it.toAnalysisResult() }
     }
 
-    /**
-     * Backward-compatible overload accepting HandState
-     */
     suspend fun analyzePokerFrame(
         bitmap: Bitmap,
         state: HandState
@@ -231,66 +267,131 @@ class GeminiPokerRepository {
     }
 
     /**
-     * Executes Gemini API call with minimal tokens (maxOutputTokens: 70) and temperature: 0.0f.
-     * DEFENSIVE AUDIT: Wrapped completely in a try-catch catching ANY Throwable
-     * (ClassNotFoundException, NoClassDefFoundError, SocketTimeoutException, LinkageError, etc.)
-     * guaranteeing ZERO crashes and total UI resilience.
+     * REST directo a Gemini 3.x Flash via generateContent endpoint.
+     * Cascade: gemini-3.8-flash → gemini-3.7-flash.
+     * Sin temperature, sin top_p, sin top_k (causan HTTP 400 en Gemini 3.x).
+     * Cualquier 503 / respuesta vacía activa el siguiente modelo de la cascada.
      */
     private suspend fun callGeminiFast(
         apiKey: String,
         prompt: String,
         bitmap: Bitmap
     ): GeminiCallResult {
-        return try {
-            val config = generationConfig {
-                temperature = 0.0f // Zero temperature for deterministic, immediate GTO decision
-                maxOutputTokens = 120 // Tokens for complete structured detection
-            }
+        // Codificar imagen a base64 JPEG 85%
+        val stream = ByteArrayOutputStream()
+        bitmap.compress(Bitmap.CompressFormat.JPEG, JPEG_COMPRESSION_QUALITY, stream)
+        val base64Image = java.util.Base64.getEncoder().encodeToString(stream.toByteArray())
 
-            val candidateModels = listOf(
-                "gemini-1.5-flash",
-                "gemini-2.0-flash",
-                "gemini-1.5-flash-8b",
-                "gemini-1.5-pro"
-            )
+        var lastError: String? = null
 
-            var lastErrorMsg: String? = null
-
-            for (modelName in candidateModels) {
-                try {
-                    val model = GenerativeModel(
-                        modelName = modelName,
-                        apiKey = apiKey,
-                        generationConfig = config
-                    )
-                    val response = model.generateContent(
-                        content {
-                            image(bitmap)
-                            text(prompt)
-                        }
-                    )
-                    val text = response.text
-                    if (!text.isNullOrBlank()) {
-                        Log.d("GEMINI_DEBUG", "RAW AI RESPONSE ($modelName): $text")
-                        return GeminiCallResult(text = text)
-                    }
-                } catch (t: Throwable) {
-                    val msg = t.message ?: t.javaClass.simpleName
-                    Log.w(TAG, "Model $modelName attempt failed ($msg)")
-                    lastErrorMsg = msg
+        for (modelName in candidateModels) {
+            try {
+                val requestBody = buildJsonObject {
+                    put("contents", buildJsonArray {
+                        add(buildJsonObject {
+                            put("parts", buildJsonArray {
+                                add(buildJsonObject {
+                                    put("text", prompt)
+                                })
+                                add(buildJsonObject {
+                                    put("inline_data", buildJsonObject {
+                                        put("mime_type", "image/jpeg")
+                                        put("data", base64Image)
+                                    })
+                                })
+                            })
+                        })
+                    })
+                    put("generationConfig", buildJsonObject {
+                        // Solo parámetros válidos en Gemini 3.x Flash.
+                        // NO temperature, NO top_p, NO top_k: HTTP 400.
+                        // NO presence_penalty, NO frequency_penalty.
+                        put("maxOutputTokens", 200)
+                    })
                 }
+
+                val response = ktorClient.post(
+                    "$ENDPOINT_BASE/$modelName:generateContent"
+                ) {
+                    headers {
+                        append("x-goog-api-key", apiKey)
+                    }
+                    contentType(ContentType.Application.Json)
+                    setBody(requestBody.toString())
+                }
+
+                val statusCode = response.status.value
+                val body = response.bodyAsText()
+
+                if (statusCode !in 200..299) {
+                    lastError = "HTTP $statusCode: ${body.take(180)}"
+                    Log.w(TAG, "$modelName failed with HTTP $statusCode: ${body.take(200)}")
+                    continue
+                }
+
+                val parsed = try {
+                    json.parseToJsonElement(body)
+                } catch (e: Exception) {
+                    lastError = "JSON parse error: ${e.message?.take(60)}"
+                    Log.w(TAG, "$modelName returned invalid JSON: ${body.take(200)}")
+                    continue
+                }
+
+                val jsonObj = parsed as? JsonObject
+                if (jsonObj == null) {
+                    lastError = "Response not a JSON object"
+                    continue
+                }
+
+                // Detectar error de API dentro del body (Google a veces devuelve 200 con error JSON)
+                jsonObj["error"]?.let { err ->
+                    val errMsg = (err as? JsonObject)?.get("message")?.jsonPrimitive?.contentOrNull
+                    lastError = errMsg ?: "Unknown API error"
+                    Log.w(TAG, "$modelName returned error in body: $lastError")
+                    return@let
+                }
+
+                val text = jsonObj["candidates"]
+                    ?.jsonArray
+                    ?.firstOrNull()
+                    ?.jsonObject
+                    ?.get("content")
+                    ?.jsonObject
+                    ?.get("parts")
+                    ?.jsonArray
+                    ?.firstOrNull()
+                    ?.jsonObject
+                    ?.get("text")
+                    ?.jsonPrimitive
+                    ?.contentOrNull
+
+                if (!text.isNullOrBlank()) {
+                    Log.d(TAG, "$modelName responded OK (${text.length} chars)")
+                    return GeminiCallResult(text = text, modelUsed = modelName)
+                } else {
+                    lastError = "Empty text in response"
+                    Log.w(TAG, "$modelName returned empty text. Body: ${body.take(200)}")
+                }
+            } catch (e: ResponseException) {
+                val code = e.response.status.value
+                lastError = "HTTP $code: ${e.message?.take(80)}"
+                Log.w(TAG, "$modelName ResponseException: $lastError", e)
+            } catch (e: HttpRequestTimeoutException) {
+                lastError = "Timeout HTTP"
+                Log.w(TAG, "$modelName timeout", e)
+            } catch (t: Throwable) {
+                val msg = t.message ?: t.javaClass.simpleName
+                lastError = msg
+                Log.e(TAG, "$modelName unexpected error: $msg", t)
             }
-            GeminiCallResult(errorMessage = lastErrorMsg)
-        } catch (t: Throwable) {
-            val msg = t.message ?: t.javaClass.simpleName
-            Log.e(TAG, "Defensive catch-all in callGeminiFast caught: $msg", t)
-            GeminiCallResult(errorMessage = msg)
         }
+
+        return GeminiCallResult(errorMessage = lastError ?: "Todos los modelos fallaron")
     }
 
     /**
      * Motor de Visión y Decisión Texas Hold'em Local.
-     * Mantiene el estado real de la partida sin inyectar manos simuladas o precargadas.
+     * Mantiene el estado real de la partida sin inyectar manos simuladas.
      */
     fun analyzeBitmapLocally(
         bitmap: Bitmap,
@@ -307,8 +408,7 @@ class GeminiPokerRepository {
     }
 
     /**
-     * Creates a safe default error state: Win 0%, GTO Error/Reintentar,
-     * allowing the HUD overlay to display an intuitive retry state without crashing.
+     * Creates a safe default error state.
      */
     fun createDefensiveErrorState(
         currentState: HandState,
@@ -331,7 +431,8 @@ class GeminiPokerRepository {
 
     /**
      * Parses the strict response format:
-     * Cartas:[X] | Outs:[X-Palo/Valor] | Win:[X]% | GTO:[Fold/Call/Raise-Valor]
+     * Cartas:[X] | Mesa:[X] | Jugadores:[X] | Dealer:[X] | MiPosicion:[X] |
+     * Fase:[X] | Outs:[X] | Win:[X]% | GTO:[Acción-Valor]
      */
     fun parseSurgicalResponse(
         rawText: String,
@@ -409,7 +510,6 @@ class GeminiPokerRepository {
                 lower.startsWith("gto:") -> {
                     val rawGto = part.substringAfter(":").trim().replace("[", "").replace("]", "")
                     gtoAction = GtoAction.fromString(rawGto)
-                    // Extract value component if present, e.g. "Raise-3BB" -> "3BB"
                     gtoActionValue = if (rawGto.contains("-")) {
                         rawGto.substringAfter("-").trim()
                     } else if (rawGto.contains(" ")) {
@@ -421,7 +521,6 @@ class GeminiPokerRepository {
             }
         }
 
-        // Auto-detect phase from community card count if available
         val detectedFase = parsedFase ?: when (communityCards.size) {
             0 -> "Preflop"
             3 -> "Flop"
@@ -430,7 +529,6 @@ class GeminiPokerRepository {
             else -> currentState.fase
         }
 
-        // Si la IA detectó jugadores o posiciones, sincronizar con GTOStateManager
         GTOStateManager.updateFromAnalysis(
             fase = detectedFase,
             bote = null,
@@ -439,7 +537,6 @@ class GeminiPokerRepository {
             myPos = detectedMyPos
         )
 
-        // Si la IA devolvió cartas pero no una decisión GTO válida, invocar motor GTO determinista
         if (gtoAction == GtoAction.UNKNOWN && holeCards.isNotEmpty()) {
             val engineDecision = PokerGtoEngine.calculate(
                 holeCards = holeCards,
@@ -476,28 +573,6 @@ class GeminiPokerRepository {
             isLoading = false,
             isExpanded = true,
             isSimulation = false
-        )
-    }
-
-    /**
-     * Fast local heuristic fallback when offline or using placeholder key
-     */
-    private fun generateFastHeuristic(currentState: HandState, latency: Long): HandState {
-        return currentState.copy(
-            fase = if (currentState.cartasComunitarias.isEmpty()) "Preflop" else currentState.fase,
-            cartasPropias = if (currentState.cartasPropias.isEmpty()) {
-                listOf(PokerCard("A", CardSuit.SPADES), PokerCard("K", CardSuit.HEARTS))
-            } else {
-                currentState.cartasPropias
-            },
-            outs = if (currentState.outs == "—") "9-Corazones ♥" else currentState.outs,
-            winRate = if (currentState.winRate == "—") "65%" else currentState.winRate,
-            gtoAction = if (currentState.gtoAction == GtoAction.UNKNOWN) GtoAction.RAISE else currentState.gtoAction,
-            gtoActionValue = "3.5x",
-            latencyMs = latency,
-            isLoading = false,
-            isExpanded = true,
-            isSimulation = true
         )
     }
 }

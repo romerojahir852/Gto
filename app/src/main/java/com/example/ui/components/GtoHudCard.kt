@@ -1,4 +1,12 @@
-package com.example.ui.components
+package com.example.ui
+
+import com.example.ui.theme.BgWhite
+import com.example.ui.theme.BgSoft
+import com.example.ui.theme.Ink
+import com.example.ui.theme.Ink2
+import com.example.ui.theme.Ink3
+import com.example.ui.theme.Line
+import com.example.ui.theme.Line2.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -46,7 +54,7 @@ fun GtoHudCard(
             .testTag("gto_hud_result_card"),
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(
-            containerColor = Color(0xFF13221C)
+            containerColor = BgSoft
         ),
         border = CardDefaults.outlinedCardBorder().copy(
             brush = androidx.compose.ui.graphics.SolidColor(result.gtoAction.color.copy(alpha = 0.6f))
@@ -160,7 +168,7 @@ fun GtoHudCard(
                         Text(
                             text = "EQUITY / WIN %",
                             style = MaterialTheme.typography.labelSmall,
-                            color = Color(0xFF94A3B8),
+                            color = Ink3,
                             fontWeight = FontWeight.Bold
                         )
                         Spacer(modifier = Modifier.height(2.dp))
@@ -178,7 +186,7 @@ fun GtoHudCard(
                                 .height(6.dp)
                                 .clip(RoundedCornerShape(3.dp)),
                             color = Color(0xFF10B981),
-                            trackColor = Color(0xFF1F382E)
+                            trackColor = Line2
                         )
                     }
                 }
@@ -193,7 +201,7 @@ fun GtoHudCard(
                         Text(
                             text = "OUTS CALCULADOS",
                             style = MaterialTheme.typography.labelSmall,
-                            color = Color(0xFF94A3B8),
+                            color = Ink3,
                             fontWeight = FontWeight.Bold
                         )
                         Spacer(modifier = Modifier.height(2.dp))
@@ -208,7 +216,7 @@ fun GtoHudCard(
                         Text(
                             text = result.outsDetail ?: "Regla del 4 y del 2",
                             style = MaterialTheme.typography.bodySmall,
-                            color = Color(0xFF64748B),
+                            color = Ink3,
                             maxLines = 1
                         )
                     }
@@ -221,7 +229,7 @@ fun GtoHudCard(
                         text = "PROYECTOS Y LECTURA MATEMÁTICA:",
                         style = MaterialTheme.typography.labelSmall,
                         fontWeight = FontWeight.Bold,
-                        color = Color(0xFF94A3B8)
+                        color = Ink3
                     )
                     FlowRow(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -277,7 +285,7 @@ fun GtoHudCard(
                 Text(
                     text = "Posición en Mesa: ${result.position}",
                     style = MaterialTheme.typography.bodySmall,
-                    color = Color(0xFF64748B)
+                    color = Ink3
                 )
             }
         }

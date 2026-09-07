@@ -1,5 +1,13 @@
 package com.example.ui
 
+import com.example.ui.theme.BgWhite
+import com.example.ui.theme.BgSoft
+import com.example.ui.theme.Ink
+import com.example.ui.theme.Ink2
+import com.example.ui.theme.Ink3
+import com.example.ui.theme.Line
+import com.example.ui.theme.Line2
+
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -81,46 +89,49 @@ fun MainPokerScreen(
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
-        containerColor = Color(0xFF070F0B),
+        containerColor = BgWhite,
         topBar = {
             TopAppBar(
                 title = {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        Text(
-                            text = "♠ POKER GTO VISION",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Black,
-                            color = Color(0xFFF8FAFC),
-                            letterSpacing = 1.sp
-                        )
-                        Surface(
-                            color = Color(0xFF10B981).copy(alpha = 0.2f),
-                            shape = RoundedCornerShape(4.dp)
+                        Box(
+                            modifier = Modifier
+                                .size(38.dp)
+                                .clip(CircleShape)
+                                .background(Ink)
+                                .border(1.dp, Line, CircleShape),
+                            contentAlignment = Alignment.Center
                         ) {
                             Text(
-                                text = "LATENCIA < 2S",
-                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-                                style = MaterialTheme.typography.labelSmall,
-                                fontWeight = FontWeight.Bold,
-                                color = Color(0xFF34D399)
+                                text = "♠",
+                                color = BgWhite,
+                                fontSize = 18.sp,
+                                fontWeight = FontWeight.Black
                             )
                         }
+                        Text(
+                            text = "POKER GTO VISION",
+                            color = Ink,
+                            fontFamily = androidx.compose.ui.text.font.FontFamily.Default,
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 13.sp,
+                            letterSpacing = 0.28.sp
+                        )
                     }
                 },
                 actions = {
                     Surface(
-                        color = if (isServiceRunning) Color(0x3310B981) else Color(0x22EF4444),
-                        shape = RoundedCornerShape(20.dp),
-                        border = CardDefaults.outlinedCardBorder().copy(
-                            brush = androidx.compose.ui.graphics.SolidColor(
-                                if (isServiceRunning) Color(0xFF10B981) else Color(0xFFEF4444)
-                            )
+                        shape = RoundedCornerShape(999.dp),
+                        color = if (isServiceRunning) Color(0xFFECFDF5) else Color(0xFFF3F4F6),
+                        border = androidx.compose.foundation.BorderStroke(
+                            1.dp,
+                            if (isServiceRunning) Color(0xFFA7F3D0) else Line2
                         ),
                         modifier = Modifier
-                            .padding(end = 8.dp)
+                            .padding(end = 12.dp)
                             .clickable {
                                 if (isServiceRunning) onStopServiceRequested() else onStartServiceRequested()
                             }
@@ -129,272 +140,329 @@ fun MainPokerScreen(
                         Row(
                             modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
                             Box(
                                 modifier = Modifier
-                                    .size(8.dp)
+                                    .size(6.dp)
                                     .background(
-                                        if (isServiceRunning) Color(0xFF10B981) else Color(0xFFEF4444),
+                                        if (isServiceRunning) Color(0xFF10B981) else Ink3,
                                         CircleShape
                                     )
                             )
                             Text(
-                                text = if (isServiceRunning) "CAPTURA ACTIVA" else "SERVICIO INACTIVO",
+                                text = if (isServiceRunning) "Captura activa" else "Captura inactiva",
                                 style = MaterialTheme.typography.labelSmall,
                                 fontWeight = FontWeight.Bold,
-                                color = if (isServiceRunning) Color(0xFF34D399) else Color(0xFFF87171)
+                                color = if (isServiceRunning) Color(0xFF047857) else Ink3
                             )
                         }
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color(0xFF0B1812)
+                    containerColor = BgWhite.copy(alpha = 0.92f)
                 )
             )
         }
     ) { innerPadding ->
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
-                .padding(horizontal = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            item {
-                Spacer(modifier = Modifier.height(4.dp))
-                StreetSelectorTabs(
-                    selectedStreet = selectedStreet,
-                    onStreetSelected = { viewModel.setStreet(it) }
-                )
-            }
+        Box(modifier = Modifier.fillMaxSize()) {
+            com.example.ui.components.BackgroundGeometry(modifier = Modifier.fillMaxSize())
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding)
+                    .padding(horizontal = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                item {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        com.example.ui.components.Eyebrow(text = "Fase de la mano")
+                        Text(
+                            text = "Prompt optimizado GTO",
+                            color = Ink,
+                            fontFamily = androidx.compose.ui.text.font.FontFamily.Default,
+                            fontWeight = FontWeight.Light,
+                            fontSize = 24.sp,
+                            letterSpacing = 0.02.sp
+                        )
+                        com.example.ui.components.SectionSub(
+                            text = "Elige la fase o usa el simulador. El prompt se adapta al contexto para extraer la jugada GTO."
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        StreetSelectorTabs(
+                            selectedStreet = selectedStreet,
+                            onStreetSelected = { viewModel.setStreet(it) }
+                        )
+                    }
+                }
 
-            item {
-                PrimaryCaptureActionCard(
-                    isServiceRunning = isServiceRunning,
-                    uiState = uiState,
-                    onStartService = onStartServiceRequested,
-                    onCaptureNow = { viewModel.triggerScreenCapture() },
-                    onStopService = onStopServiceRequested
-                )
-            }
+                item {
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        com.example.ui.components.Eyebrow(text = "Servicio de captura")
+                        Text(
+                            text = "Activar MediaProjection",
+                            color = Ink,
+                            fontFamily = androidx.compose.ui.text.font.FontFamily.Default,
+                            fontWeight = FontWeight.Light,
+                            fontSize = 24.sp,
+                            letterSpacing = 0.02.sp
+                        )
+                        com.example.ui.components.SectionSub(
+                            text = "Inicia el servicio foreground para leer la pantalla en tiempo real."
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        PrimaryCaptureActionCard(
+                            isServiceRunning = isServiceRunning,
+                            uiState = uiState,
+                            onStartService = onStartServiceRequested,
+                            onCaptureNow = { viewModel.triggerScreenCapture() },
+                            onStopService = onStopServiceRequested
+                        )
+                    }
+                }
 
-            item {
-                AnimatedVisibility(
-                    visible = uiState is AnalysisUiState.Analyzing || uiState is AnalysisUiState.Capturing,
-                    enter = fadeIn(),
-                    exit = fadeOut()
-                ) {
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.cardColors(containerColor = Color(0xFF13221C)),
-                        shape = RoundedCornerShape(12.dp)
+                item {
+                    AnimatedVisibility(
+                        visible = uiState is AnalysisUiState.Analyzing || uiState is AnalysisUiState.Capturing,
+                        enter = fadeIn(),
+                        exit = fadeOut()
                     ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(16.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = CardDefaults.cardColors(containerColor = BgSoft),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, Line),
+                            shape = RoundedCornerShape(12.dp)
                         ) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(28.dp),
-                                color = Color(0xFF10B981),
-                                strokeWidth = 3.dp
-                            )
-                            Column {
-                                Text(
-                                    text = if (uiState is AnalysisUiState.Capturing)
-                                        "Leyendo fotograma de pantalla..."
-                                    else
-                                        "Calculando Outs, Equity y GTO con Gemini...",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color(0xFFF8FAFC)
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(16.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(28.dp),
+                                    color = Ink,
+                                    strokeWidth = 3.dp
                                 )
-                                Text(
-                                    text = "Optimizando imagen a 720p y analizando con gemini-1.5-flash",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = Color(0xFF94A3B8)
-                                )
+                                Column {
+                                    Text(
+                                        text = if (uiState is AnalysisUiState.Capturing)
+                                            "Leyendo fotograma de pantalla..."
+                                        else
+                                            "Calculando Outs, Equity y GTO con Gemini...",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Ink
+                                    )
+                                    Text(
+                                        text = "Optimizando imagen a 720p y analizando con gemini-1.5-flash",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = Ink3
+                                    )
+                                }
                             }
                         }
                     }
                 }
-            }
 
-            item {
-                if (uiState is AnalysisUiState.Error) {
-                    val errorMsg = (uiState as AnalysisUiState.Error).message
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.cardColors(containerColor = Color(0x33EF4444)),
-                        border = CardDefaults.outlinedCardBorder().copy(
-                            brush = androidx.compose.ui.graphics.SolidColor(Color(0xFFEF4444))
-                        ),
-                        shape = RoundedCornerShape(12.dp)
-                    ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(14.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                item {
+                    if (uiState is AnalysisUiState.Error) {
+                        val errorMsg = (uiState as AnalysisUiState.Error).message
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = CardDefaults.cardColors(containerColor = Color(0xFFFEF2F2)),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFFECACA)),
+                            shape = RoundedCornerShape(12.dp)
                         ) {
-                            Icon(
-                                imageVector = Icons.Default.Warning,
-                                contentDescription = null,
-                                tint = Color(0xFFEF4444)
-                            )
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = "Atención en el Análisis",
-                                    style = MaterialTheme.typography.titleSmall,
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color(0xFFF87171)
-                                )
-                                Text(
-                                    text = errorMsg,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = Color(0xFFFCA5A5)
-                                )
-                            }
-                            IconButton(onClick = { viewModel.clearError() }) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(14.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
                                 Icon(
-                                    imageVector = Icons.Default.Refresh,
-                                    contentDescription = "Descartar",
+                                    imageVector = Icons.Default.Warning,
+                                    contentDescription = null,
                                     tint = Color(0xFFEF4444)
                                 )
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = "Atención en el análisis",
+                                        style = MaterialTheme.typography.titleSmall,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color(0xFFB91C1C)
+                                    )
+                                    Text(
+                                        text = errorMsg,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = Color(0xFFEF4444)
+                                    )
+                                }
+                                IconButton(onClick = { viewModel.clearError() }) {
+                                    Icon(
+                                        imageVector = Icons.Default.Refresh,
+                                        contentDescription = "Descartar",
+                                        tint = Color(0xFFEF4444)
+                                    )
+                                }
                             }
                         }
                     }
                 }
-            }
 
-            item {
-                if (latestResult != null) {
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text(
-                            text = "ANÁLISIS GTO EN TIEMPO REAL",
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.ExtraBold,
-                            color = Color(0xFF34D399),
-                            letterSpacing = 1.sp
-                        )
-                        GtoHudCard(result = latestResult!!)
-
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.End
-                        ) {
+                item {
+                    if (latestResult != null) {
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            com.example.ui.components.Eyebrow(text = "Resultado en vivo")
                             Text(
-                                text = if (showRawResponse) "Ocultar respuesta cruda" else "Ver formato enviado/recibido",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = Color(0xFF64748B),
-                                modifier = Modifier
-                                    .clickable { showRawResponse = !showRawResponse }
-                                    .padding(vertical = 4.dp)
+                                text = "Jugada GTO recomendada",
+                                color = Ink,
+                                fontFamily = androidx.compose.ui.text.font.FontFamily.Default,
+                                fontWeight = FontWeight.Light,
+                                fontSize = 24.sp,
+                                letterSpacing = 0.02.sp
                             )
-                        }
+                            Spacer(modifier = Modifier.height(8.dp))
+                            GtoHudCard(result = latestResult!!)
 
-                        if (showRawResponse) {
-                            Card(
+                            Row(
                                 modifier = Modifier.fillMaxWidth(),
-                                colors = CardDefaults.cardColors(containerColor = Color(0xFF09130E)),
-                                shape = RoundedCornerShape(8.dp)
+                                horizontalArrangement = Arrangement.End
                             ) {
                                 Text(
-                                    text = latestResult!!.rawText,
-                                    modifier = Modifier.padding(12.dp),
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = Color(0xFF94A3B8),
-                                    fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
+                                    text = if (showRawResponse) "Ocultar respuesta cruda" else "Ver formato enviado/recibido",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = Ink3,
+                                    modifier = Modifier
+                                        .clickable { showRawResponse = !showRawResponse }
+                                        .padding(vertical = 4.dp)
+                                )
+                            }
+
+                            if (showRawResponse) {
+                                Card(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    colors = CardDefaults.cardColors(containerColor = BgSoft),
+                                    border = androidx.compose.foundation.BorderStroke(1.dp, Line),
+                                    shape = RoundedCornerShape(8.dp)
+                                ) {
+                                    Text(
+                                        text = latestResult!!.rawText,
+                                        modifier = Modifier.padding(12.dp),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = Ink2,
+                                        fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
+                item {
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        com.example.ui.components.Eyebrow(text = "Simulador")
+                        Text(
+                            text = "Manos de prueba",
+                            color = Ink,
+                            fontFamily = androidx.compose.ui.text.font.FontFamily.Default,
+                            fontWeight = FontWeight.Light,
+                            fontSize = 24.sp,
+                            letterSpacing = 0.02.sp
+                        )
+                        com.example.ui.components.SectionSub(
+                            text = "Flush Draw, Gutshot, OESD, Big Slick. Sin capturar pantalla real."
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        PokerTableSimulator(
+                            selectedPreset = selectedPreset,
+                            onPresetSelected = { viewModel.selectPreset(it) },
+                            onAnalyzePreset = { bitmap, street ->
+                                viewModel.analyzeBitmap(bitmap, street)
+                            }
+                        )
+                    }
+                }
+
+                if (history.isNotEmpty()) {
+                    item {
+                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            com.example.ui.components.Eyebrow(text = "Historial")
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.History,
+                                    contentDescription = null,
+                                    tint = Ink3,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Text(
+                                    text = "Manos evaluadas (${history.size})",
+                                    color = Ink,
+                                    fontFamily = androidx.compose.ui.text.font.FontFamily.Default,
+                                    fontWeight = FontWeight.Light,
+                                    fontSize = 20.sp,
+                                    letterSpacing = 0.02.sp
                                 )
                             }
                         }
                     }
-                }
-            }
 
-            item {
-                PokerTableSimulator(
-                    selectedPreset = selectedPreset,
-                    onPresetSelected = { viewModel.selectPreset(it) },
-                    onAnalyzePreset = { bitmap, street ->
-                        viewModel.analyzeBitmap(bitmap, street)
-                    }
-                )
-            }
-
-            if (history.isNotEmpty()) {
-                item {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.History,
-                            contentDescription = null,
-                            tint = Color(0xFF94A3B8),
-                            modifier = Modifier.size(16.dp)
-                        )
-                        Text(
-                            text = "HISTORIAL DE MANOS (${history.size})",
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.Bold,
-                            color = Color(0xFF94A3B8)
-                        )
-                    }
-                }
-
-                itemsIndexed(history) { index, hist ->
-                    Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .testTag("history_item_$index"),
-                        colors = CardDefaults.cardColors(containerColor = Color(0xFF0E1A14)),
-                        shape = RoundedCornerShape(10.dp)
-                    ) {
-                        Row(
+                    itemsIndexed(history) { index, hist ->
+                        Card(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(12.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
+                                .testTag("history_item_$index"),
+                            colors = CardDefaults.cardColors(containerColor = BgWhite),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, Line),
+                            shape = RoundedCornerShape(10.dp)
                         ) {
-                            Column {
-                                Text(
-                                    text = "${hist.street.displayName} • ${hist.gtoAction.title}",
-                                    style = MaterialTheme.typography.titleSmall,
-                                    fontWeight = FontWeight.Bold,
-                                    color = hist.gtoAction.color
-                                )
-                                Text(
-                                    text = "Outs: ${hist.totalOuts ?: "-"} | Win: ${hist.winEquity ?: "-"} | Latencia: ${hist.latencyMs}ms",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = Color(0xFF94A3B8)
-                                )
-                            }
-
-                            Surface(
-                                color = hist.gtoAction.bgTint,
-                                shape = RoundedCornerShape(6.dp)
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(12.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Text(
-                                    text = hist.gtoAction.title,
-                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                                    fontWeight = FontWeight.Black,
-                                    color = hist.gtoAction.color,
-                                    style = MaterialTheme.typography.labelSmall
-                                )
+                                Column {
+                                    Text(
+                                        text = "${hist.street.displayName} - ${hist.gtoAction.title}",
+                                        style = MaterialTheme.typography.titleSmall,
+                                        fontWeight = FontWeight.Bold,
+                                        color = hist.gtoAction.color
+                                    )
+                                    Text(
+                                        text = "Outs: ${hist.totalOuts ?: "-"} | Win: ${hist.winEquity ?: "-"} | Latencia: ${hist.latencyMs}ms",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = Ink3
+                                    )
+                                }
+
+                                Surface(
+                                    color = hist.gtoAction.bgTint,
+                                    shape = RoundedCornerShape(6.dp)
+                                ) {
+                                    Text(
+                                        text = hist.gtoAction.title,
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                        fontWeight = FontWeight.Black,
+                                        color = hist.gtoAction.color,
+                                        style = MaterialTheme.typography.labelSmall
+                                    )
+                                }
                             }
                         }
                     }
                 }
-            }
 
-            item {
-                Spacer(modifier = Modifier.height(24.dp))
+                item {
+                    Spacer(modifier = Modifier.height(24.dp))
+                }
             }
         }
     }
