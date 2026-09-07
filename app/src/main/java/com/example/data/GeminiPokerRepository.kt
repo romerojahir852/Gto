@@ -84,6 +84,11 @@ class GeminiPokerRepository {
                 "Responde ÚNICAMENTE con este formato Regex-ready: Cartas:[ValorPalo] | Mesa:[ValorPalo] | Jugadores:[2-9] | Dealer:[Posición] | MiPosicion:[Posición] | Fase:[Preflop/Flop/Turn/River] | Outs:[Numero] | Win:[X]% | GTO:[Acción y Tamaño]. Cero explicaciones."
     }
 
+    private data class GeminiCallResult(
+        val text: String? = null,
+        val errorMessage: String? = null
+    )
+
     /**
      * Analyzes poker screen frame 100% on Dispatchers.IO.
      * Evaluates clean cropped bitmap with Gemini (gemini-1.5-flash prioritized)
@@ -97,18 +102,33 @@ class GeminiPokerRepository {
         val prompt = buildSurgicalPrompt(currentState)
         val apiKey = BuildConfig.GEMINI_API_KEY
 
+        // Si la clave no está configurada o sigue con el valor por defecto
+        if (apiKey.isBlank() || apiKey == "MY_GEMINI_API_KEY") {
+            val missingKeyMsg = "⚠️ Falta GEMINI_API_KEY en .env / Secrets"
+            Log.w("GEMINI_INFO", missingKeyMsg)
+            val updatedState = currentState.copy(
+                statusMessage = missingKeyMsg,
+                latencyMs = 0L,
+                isLoading = false,
+                isExpanded = true
+            )
+            PokerGameStateManager.updateIncremental(
+                statusMessage = missingKeyMsg,
+                latencyMs = 0L
+            )
+            return@withContext Result.success(updatedState)
+        }
+
         try {
             // Compress and scale image strictly on IO
             val compressedBitmap = optimizeBitmap(bitmap)
 
-            var responseText: String? = null
-            if (apiKey.isNotBlank() && apiKey != "MY_GEMINI_API_KEY") {
-                responseText = withTimeout(TIMEOUT_MS) {
-                    callGeminiFast(apiKey, prompt, compressedBitmap)
-                }
+            val callResult = withTimeout(TIMEOUT_MS) {
+                callGeminiFast(apiKey, prompt, compressedBitmap)
             }
 
             val latency = System.currentTimeMillis() - startTime
+            val responseText = callResult.text
 
             if (!responseText.isNullOrBlank()) {
                 Log.d("GEMINI_DEBUG", "RAW AI RESPONSE: $responseText")
@@ -117,6 +137,11 @@ class GeminiPokerRepository {
                     fase = parsedState.fase,
                     cartasPropias = parsedState.cartasPropias,
                     cartasComunitarias = parsedState.cartasComunitarias,
+                    jugadores = parsedState.jugadores,
+                    posicion = parsedState.posicion,
+                    dealerPosition = parsedState.dealerPosition,
+                    dealerDetected = parsedState.dealerDetected,
+                    tablePositionsSummary = parsedState.tablePositionsSummary,
                     outs = parsedState.outs,
                     winRate = parsedState.winRate,
                     gtoAction = parsedState.gtoAction,
@@ -124,61 +149,61 @@ class GeminiPokerRepository {
                     rawText = responseText,
                     latencyMs = latency,
                     isSimulation = false,
-                    statusMessage = "Lectura con IA (${latency}ms)"
+                    statusMessage = "Lectura IA exitosa (${latency}ms)"
                 )
                 Result.success(parsedState)
             } else {
-                Log.w("GEMINI_INFO", "Sin respuesta de IA. Ejecutando lectura visual directa de mesa.")
-                val localState = analyzeBitmapLocally(bitmap, currentState, latency)
-                PokerGameStateManager.updateIncremental(
-                    fase = localState.fase,
-                    cartasPropias = localState.cartasPropias,
-                    cartasComunitarias = localState.cartasComunitarias,
-                    outs = localState.outs,
-                    winRate = localState.winRate,
-                    gtoAction = localState.gtoAction,
-                    gtoActionValue = localState.gtoActionValue,
-                    rawText = localState.rawText,
+                val errorMsg = when {
+                    callResult.errorMessage?.contains("quota", ignoreCase = true) == true ||
+                    callResult.errorMessage?.contains("resource_exhausted", ignoreCase = true) == true -> "⚠️ Cuota Gemini agotada (Límite de peticiones)"
+                    callResult.errorMessage?.contains("API_KEY_INVALID", ignoreCase = true) == true -> "⚠️ Clave GEMINI_API_KEY inválida"
+                    else -> "⚠️ Error IA: ${callResult.errorMessage?.take(35) ?: "Sin lectura"}"
+                }
+                Log.w("GEMINI_ERROR", "Sin respuesta de IA: ${callResult.errorMessage}")
+                val updatedState = currentState.copy(
+                    statusMessage = errorMsg,
                     latencyMs = latency,
-                    isSimulation = false,
-                    statusMessage = "Lectura de pantalla directa (${latency}ms)"
+                    isLoading = false,
+                    isExpanded = true
                 )
-                Result.success(localState)
+                PokerGameStateManager.updateIncremental(
+                    statusMessage = errorMsg,
+                    latencyMs = latency
+                )
+                Result.success(updatedState)
             }
         } catch (e: TimeoutCancellationException) {
             val latency = System.currentTimeMillis() - startTime
             Log.w("GEMINI_TIMEOUT", "TimeoutCancellationException (4000ms): Red lenta o timeout de Gemini.", e)
+            val timeoutMsg = "⚠️ Timeout (4s) de Gemini"
             val timeoutState = currentState.copy(
-                outs = "—",
-                winRate = "—",
-                gtoAction = GtoAction.CHECK,
-                gtoActionValue = "Timeout 4s",
-                statusMessage = "Timeout (4s) - Análisis local activo",
+                statusMessage = timeoutMsg,
                 latencyMs = latency,
                 isLoading = false,
                 isExpanded = true
             )
             PokerGameStateManager.updateIncremental(
-                statusMessage = "Timeout (4s) - Análisis local activo",
+                statusMessage = timeoutMsg,
                 latencyMs = latency
             )
             Result.success(timeoutState)
         } catch (e: Throwable) {
             val latency = System.currentTimeMillis() - startTime
-            Log.e("GEMINI_ERROR", "Fallo general en analyzeHand, ejecutando lectura local asistida", e)
-            val fallbackState = analyzeBitmapLocally(bitmap, currentState, latency)
-            PokerGameStateManager.updateIncremental(
-                fase = fallbackState.fase,
-                cartasPropias = fallbackState.cartasPropias,
-                cartasComunitarias = fallbackState.cartasComunitarias,
-                outs = fallbackState.outs,
-                winRate = fallbackState.winRate,
-                gtoAction = fallbackState.gtoAction,
-                gtoActionValue = fallbackState.gtoActionValue,
-                rawText = fallbackState.rawText,
+            val msg = e.message ?: e.javaClass.simpleName
+            Log.e("GEMINI_ERROR", "Fallo general en analyzeHand: $msg", e)
+            val errorMsg = when {
+                msg.contains("quota", ignoreCase = true) || msg.contains("resource_exhausted", ignoreCase = true) -> "⚠️ Cuota Gemini agotada"
+                else -> "⚠️ Error: ${msg.take(35)}"
+            }
+            val fallbackState = currentState.copy(
+                statusMessage = errorMsg,
                 latencyMs = latency,
-                isSimulation = false,
-                statusMessage = "Lectura asistida (${latency}ms)"
+                isLoading = false,
+                isExpanded = true
+            )
+            PokerGameStateManager.updateIncremental(
+                statusMessage = errorMsg,
+                latencyMs = latency
             )
             Result.success(fallbackState)
         }
@@ -215,7 +240,7 @@ class GeminiPokerRepository {
         apiKey: String,
         prompt: String,
         bitmap: Bitmap
-    ): String? {
+    ): GeminiCallResult {
         return try {
             val config = generationConfig {
                 temperature = 0.0f // Zero temperature for deterministic, immediate GTO decision
@@ -224,10 +249,12 @@ class GeminiPokerRepository {
 
             val candidateModels = listOf(
                 "gemini-1.5-flash",
-                "gemini-3.8-flash",
-                "gemini-2.5-flash",
-                "gemini-flash-latest"
+                "gemini-2.0-flash",
+                "gemini-1.5-flash-8b",
+                "gemini-1.5-pro"
             )
+
+            var lastErrorMsg: String? = null
 
             for (modelName in candidateModels) {
                 try {
@@ -245,177 +272,37 @@ class GeminiPokerRepository {
                     val text = response.text
                     if (!text.isNullOrBlank()) {
                         Log.d("GEMINI_DEBUG", "RAW AI RESPONSE ($modelName): $text")
-                        return text
+                        return GeminiCallResult(text = text)
                     }
                 } catch (t: Throwable) {
-                    Log.w(TAG, "Model $modelName attempt failed (${t.javaClass.simpleName}: ${t.message})")
+                    val msg = t.message ?: t.javaClass.simpleName
+                    Log.w(TAG, "Model $modelName attempt failed ($msg)")
+                    lastErrorMsg = msg
                 }
             }
-            null
+            GeminiCallResult(errorMessage = lastErrorMsg)
         } catch (t: Throwable) {
-            Log.e(TAG, "Defensive catch-all in callGeminiFast caught: ${t.javaClass.simpleName}: ${t.message}", t)
-            null
+            val msg = t.message ?: t.javaClass.simpleName
+            Log.e(TAG, "Defensive catch-all in callGeminiFast caught: $msg", t)
+            GeminiCallResult(errorMessage = msg)
         }
     }
 
-    private var localScenarioCounter = 0
-
     /**
      * Motor de Visión y Decisión Texas Hold'em Local.
-     * Analiza las características del fotograma capturado de la mesa de póker y calcula
-     * matemáticamente la fase, outs, win rate y decisión GTO sin depender de latencia de red.
+     * Mantiene el estado real de la partida sin inyectar manos simuladas o precargadas.
      */
     fun analyzeBitmapLocally(
         bitmap: Bitmap,
         currentState: HandState,
         latencyMs: Long
     ): HandState {
-        var redPixels = 0
-        var darkPixels = 0
-        val sampleStep = 10
-        val width = bitmap.width
-        val height = bitmap.height
-
-        try {
-            val sampleYStart = (height * 0.25).toInt().coerceAtLeast(0)
-            val sampleYEnd = (height * 0.85).toInt().coerceAtMost(height)
-            for (y in sampleYStart until sampleYEnd step sampleStep) {
-                for (x in 0 until width step sampleStep) {
-                    val pixel = bitmap.getPixel(x, y)
-                    val r = (pixel shr 16) and 0xFF
-                    val g = (pixel shr 8) and 0xFF
-                    val b = pixel and 0xFF
-
-                    if (r > 160 && g < 80 && b < 80) redPixels++
-                    if (r < 60 && g < 60 && b < 60) darkPixels++
-                }
-            }
-        } catch (e: Exception) {
-            Log.w(TAG, "Bitmap sampling warning: ${e.message}")
-        }
-
-        // Variedad de escenarios Texas Hold'em realistas para lectura instantánea de mesa
-        val scenarios = listOf(
-            HandState(
-                fase = "Flop",
-                bote = "240 BB",
-                apuestaRival = "50 BB",
-                cartasPropias = listOf(PokerCard("Q", CardSuit.HEARTS), PokerCard("J", CardSuit.HEARTS)),
-                cartasComunitarias = listOf(
-                    PokerCard("10", CardSuit.HEARTS),
-                    PokerCard("9", CardSuit.CLUBS),
-                    PokerCard("2", CardSuit.HEARTS)
-                ),
-                outs = "15-Corazones ♥/Escalera",
-                winRate = "54%",
-                gtoAction = GtoAction.RAISE,
-                gtoActionValue = "3.5x",
-                latencyMs = latencyMs,
-                isLoading = false,
-                isExpanded = true,
-                isSimulation = false,
-                statusMessage = "Proyecto de Color ♥ + Gutshot Detectado"
-            ),
-            HandState(
-                fase = "Preflop",
-                bote = "150 BB",
-                apuestaRival = "25 BB",
-                cartasPropias = listOf(PokerCard("A", CardSuit.SPADES), PokerCard("K", CardSuit.SPADES)),
-                cartasComunitarias = emptyList(),
-                outs = "—",
-                winRate = "67%",
-                gtoAction = GtoAction.THREE_BET,
-                gtoActionValue = "3.5x",
-                latencyMs = latencyMs,
-                isLoading = false,
-                isExpanded = true,
-                isSimulation = false,
-                statusMessage = "Mano Premium Preflop (A♠ K♠)"
-            ),
-            HandState(
-                fase = "Turn",
-                bote = "480 BB",
-                apuestaRival = "120 BB",
-                cartasPropias = listOf(PokerCard("8", CardSuit.SPADES), PokerCard("8", CardSuit.DIAMONDS)),
-                cartasComunitarias = listOf(
-                    PokerCard("A", CardSuit.SPADES),
-                    PokerCard("K", CardSuit.DIAMONDS),
-                    PokerCard("8", CardSuit.HEARTS),
-                    PokerCard("3", CardSuit.CLUBS)
-                ),
-                outs = "Full House",
-                winRate = "92%",
-                gtoAction = GtoAction.BET,
-                gtoActionValue = "75%",
-                latencyMs = latencyMs,
-                isLoading = false,
-                isExpanded = true,
-                isSimulation = false,
-                statusMessage = "Set de Ochos Conectado"
-            ),
-            HandState(
-                fase = "Flop",
-                bote = "180 BB",
-                apuestaRival = "60 BB",
-                cartasPropias = listOf(PokerCard("7", CardSuit.SPADES), PokerCard("6", CardSuit.SPADES)),
-                cartasComunitarias = listOf(
-                    PokerCard("K", CardSuit.HEARTS),
-                    PokerCard("Q", CardSuit.DIAMONDS),
-                    PokerCard("2", CardSuit.CLUBS)
-                ),
-                outs = "0 Outs",
-                winRate = "8%",
-                gtoAction = GtoAction.FOLD,
-                gtoActionValue = "",
-                latencyMs = latencyMs,
-                isLoading = false,
-                isExpanded = true,
-                isSimulation = false,
-                statusMessage = "Mesa desfavorable sin proyectos"
-            ),
-            HandState(
-                fase = "River",
-                bote = "620 BB",
-                apuestaRival = "180 BB",
-                cartasPropias = listOf(PokerCard("A", CardSuit.HEARTS), PokerCard("5", CardSuit.HEARTS)),
-                cartasComunitarias = listOf(
-                    PokerCard("K", CardSuit.HEARTS),
-                    PokerCard("9", CardSuit.HEARTS),
-                    PokerCard("2", CardSuit.HEARTS),
-                    PokerCard("J", CardSuit.CLUBS),
-                    PokerCard("4", CardSuit.SPADES)
-                ),
-                outs = "Nuts Flush",
-                winRate = "99%",
-                gtoAction = GtoAction.ALL_IN,
-                gtoActionValue = "MAX",
-                latencyMs = latencyMs,
-                isLoading = false,
-                isExpanded = true,
-                isSimulation = false,
-                statusMessage = "Color Máximo al As (Nuts)"
-            )
-        )
-
-        val selected = scenarios[localScenarioCounter % scenarios.size]
-        localScenarioCounter++
-        val adjustedBote = if (currentState.bettingUnit == BettingUnit.CHIPS) {
-            val num = selected.bote.replace("BB", "").trim().toIntOrNull() ?: 100
-            "$${num * 10}"
-        } else {
-            selected.bote
-        }
-        val adjustedApuesta = if (currentState.bettingUnit == BettingUnit.CHIPS) {
-            val num = selected.apuestaRival.replace("BB", "").trim().toIntOrNull() ?: 20
-            "$${num * 10}"
-        } else {
-            selected.apuestaRival
-        }
-        return selected.copy(
-            bote = adjustedBote,
-            apuestaRival = adjustedApuesta,
-            bettingUnit = currentState.bettingUnit,
-            latencyMs = latencyMs
+        return currentState.copy(
+            latencyMs = latencyMs,
+            isLoading = false,
+            isExpanded = true,
+            isSimulation = false,
+            statusMessage = "Captura procesada (${latencyMs}ms)"
         )
     }
 
