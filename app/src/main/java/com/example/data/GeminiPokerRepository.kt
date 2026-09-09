@@ -128,126 +128,87 @@ class GeminiPokerRepository {
 
     /**
      * Analyzes poker screen frame 100% on Dispatchers.IO.
-     * Bound to 3000ms timeout with zero crashes.
+     * Combines Gemini Multimodal Cloud Vision with automatic On-Device Local OCR fallback.
      */
     suspend fun analyzeHand(
         bitmap: Bitmap,
-        currentState: HandState = PokerGameStateManager.handState.value
+        currentState: HandState = PokerGameStateManager.handState.value,
+        context: android.content.Context? = null
     ): Result<HandState> = withContext(Dispatchers.IO) {
         val startTime = System.currentTimeMillis()
-        val prompt = buildSurgicalPrompt(currentState)
-        val apiKey = BuildConfig.GEMINI_API_KEY
+        val apiKey = ApiKeyManager.getApiKey(context)
+        val compressedBitmap = optimizeBitmap(bitmap)
 
-        if (apiKey.isBlank() || apiKey == "MY_GEMINI_API_KEY") {
-            val missingKeyMsg = "⚠️ Falta GEMINI_API_KEY en .env / Secrets"
-            Log.w("GEMINI_INFO", missingKeyMsg)
-            val updatedState = currentState.copy(
-                statusMessage = missingKeyMsg,
-                latencyMs = 0L,
-                isLoading = false,
-                isExpanded = true
-            )
-            PokerGameStateManager.updateIncremental(
-                statusMessage = missingKeyMsg,
-                latencyMs = 0L
-            )
-            return@withContext Result.success(updatedState)
+        if (!apiKey.isNullOrBlank()) {
+            try {
+                val prompt = buildSurgicalPrompt(currentState)
+                val callResult = withTimeout(TIMEOUT_MS) {
+                    callGeminiFast(apiKey, prompt, compressedBitmap)
+                }
+
+                val latency = System.currentTimeMillis() - startTime
+                val responseText = callResult.text
+
+                if (!responseText.isNullOrBlank()) {
+                    Log.d("GEMINI_DEBUG", "RAW AI RESPONSE (${callResult.modelUsed}): $responseText")
+                    val parsedState = parseSurgicalResponse(responseText, currentState, latency)
+                    if (parsedState.cartasPropias.isNotEmpty()) {
+                        PokerGameStateManager.updateIncremental(
+                            fase = parsedState.fase,
+                            cartasPropias = parsedState.cartasPropias,
+                            cartasComunitarias = parsedState.cartasComunitarias,
+                            bote = parsedState.bote,
+                            jugadores = parsedState.jugadores,
+                            posicion = parsedState.posicion,
+                            dealerPosition = parsedState.dealerPosition,
+                            dealerDetected = parsedState.dealerDetected,
+                            tablePositionsSummary = parsedState.tablePositionsSummary,
+                            outs = parsedState.outs,
+                            winRate = parsedState.winRate,
+                            gtoAction = parsedState.gtoAction,
+                            gtoActionValue = parsedState.gtoActionValue,
+                            rawText = responseText,
+                            latencyMs = latency,
+                            isSimulation = false,
+                            statusMessage = "Lectura IA exitosa (${latency}ms · ${callResult.modelUsed})"
+                        )
+                        return@withContext Result.success(parsedState)
+                    }
+                }
+            } catch (t: Throwable) {
+                Log.w("GEMINI_FALLBACK", "Gemini no completó (${t.message}), activando OCR local en dispositivo", t)
+            }
         }
 
-        try {
-            val compressedBitmap = optimizeBitmap(bitmap)
-
-            val callResult = withTimeout(TIMEOUT_MS) {
-                callGeminiFast(apiKey, prompt, compressedBitmap)
-            }
-
-            val latency = System.currentTimeMillis() - startTime
-            val responseText = callResult.text
-
-            if (!responseText.isNullOrBlank()) {
-                Log.d("GEMINI_DEBUG", "RAW AI RESPONSE (${callResult.modelUsed}): $responseText")
-                val parsedState = parseSurgicalResponse(responseText, currentState, latency)
-                PokerGameStateManager.updateIncremental(
-                    fase = parsedState.fase,
-                    cartasPropias = parsedState.cartasPropias,
-                    cartasComunitarias = parsedState.cartasComunitarias,
-                    jugadores = parsedState.jugadores,
-                    posicion = parsedState.posicion,
-                    dealerPosition = parsedState.dealerPosition,
-                    dealerDetected = parsedState.dealerDetected,
-                    tablePositionsSummary = parsedState.tablePositionsSummary,
-                    outs = parsedState.outs,
-                    winRate = parsedState.winRate,
-                    gtoAction = parsedState.gtoAction,
-                    gtoActionValue = parsedState.gtoActionValue,
-                    rawText = responseText,
-                    latencyMs = latency,
-                    isSimulation = false,
-                    statusMessage = "Lectura IA exitosa (${latency}ms · ${callResult.modelUsed})"
-                )
-                Result.success(parsedState)
-            } else {
-                val errorMsg = "⚠️ Sin respuesta de IA: ${callResult.errorMessage?.take(40) ?: "vacía"}"
-                Log.w("GEMINI_ERROR", errorMsg)
-                val updatedState = currentState.copy(
-                    statusMessage = errorMsg,
-                    latencyMs = latency,
-                    isLoading = false,
-                    isExpanded = true
-                )
-                PokerGameStateManager.updateIncremental(
-                    statusMessage = errorMsg,
-                    latencyMs = latency
-                )
-                Result.failure(Exception(errorMsg))
-            }
-        } catch (e: TimeoutCancellationException) {
-            val latency = System.currentTimeMillis() - startTime
-            val timeoutMsg = "⚠️ Timeout (${TIMEOUT_MS}ms) - usando motor local"
-            Log.w("GEMINI_TIMEOUT", timeoutMsg)
-            val timeoutState = currentState.copy(
-                statusMessage = timeoutMsg,
-                latencyMs = latency,
-                isLoading = false,
-                isExpanded = true
-            )
-            PokerGameStateManager.updateIncremental(
-                statusMessage = timeoutMsg,
-                latencyMs = latency
-            )
-            Result.success(timeoutState)
-        } catch (e: HttpRequestTimeoutException) {
-            val latency = System.currentTimeMillis() - startTime
-            val msg = "⚠️ Red lenta (timeout HTTP)"
-            Log.w("GEMINI_NET_TIMEOUT", msg, e)
-            val netState = currentState.copy(
-                statusMessage = msg,
-                latencyMs = latency,
-                isLoading = false,
-                isExpanded = true
-            )
-            PokerGameStateManager.updateIncremental(
-                statusMessage = msg,
-                latencyMs = latency
-            )
-            Result.success(netState)
-        } catch (e: Throwable) {
-            val latency = System.currentTimeMillis() - startTime
-            val msg = e.message ?: e.javaClass.simpleName
-            Log.e("GEMINI_ERROR", "Fallo general en analyzeHand: $msg", e)
-            val errorMsg = "⚠️ Error: ${msg.take(35)}"
-            val fallbackState = currentState.copy(
-                statusMessage = errorMsg,
-                latencyMs = latency,
-                isLoading = false,
-                isExpanded = true
-            )
-            PokerGameStateManager.updateIncremental(
-                statusMessage = errorMsg,
-                latencyMs = latency
-            )
-            Result.success(fallbackState)
+        // MOTOR ON-DEVICE: Detección visual OCR local directa sobre el frame
+        Log.d("OCR_LOCAL", "Ejecutando escaneo visual OCR local en dispositivo")
+        val localState = com.example.service.LocalCardOcrDetector.detect(compressedBitmap, currentState)
+        val finalStatus = if (apiKey.isNullOrBlank()) {
+            localState.statusMessage + " • 🔑 Toca para ingresar API Key"
+        } else {
+            localState.statusMessage
         }
+        val finalResult = localState.copy(statusMessage = finalStatus)
+
+        PokerGameStateManager.updateIncremental(
+            fase = finalResult.fase,
+            cartasPropias = finalResult.cartasPropias,
+            cartasComunitarias = finalResult.cartasComunitarias,
+            bote = finalResult.bote,
+            jugadores = finalResult.jugadores,
+            posicion = finalResult.posicion,
+            dealerPosition = finalResult.dealerPosition,
+            dealerDetected = finalResult.dealerDetected,
+            tablePositionsSummary = finalResult.tablePositionsSummary,
+            outs = finalResult.outs,
+            winRate = finalResult.winRate,
+            gtoAction = finalResult.gtoAction,
+            gtoActionValue = finalResult.gtoActionValue,
+            latencyMs = finalResult.latencyMs,
+            isSimulation = false,
+            statusMessage = finalStatus
+        )
+        return@withContext Result.success(finalResult)
     }
 
     /**

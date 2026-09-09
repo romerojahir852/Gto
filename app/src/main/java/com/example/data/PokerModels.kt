@@ -243,8 +243,14 @@ data class HandState(
         }
 
     val fullGtoDecision: String
-        get() = if (gtoActionValue.isNotBlank()) {
-            "${gtoAction.title} $gtoActionValue"
+        get() = if (gtoAction == GtoAction.UNKNOWN && gtoActionValue.isBlank()) {
+            "Escanea para analizar"
+        } else if (gtoActionValue.isNotBlank()) {
+            if (gtoActionValue.equals(gtoAction.title, ignoreCase = true)) {
+                gtoAction.title
+            } else {
+                "${gtoAction.title} $gtoActionValue"
+            }
         } else {
             gtoAction.title
         }
@@ -315,16 +321,16 @@ object PokerGameStateManager {
     private val _handState = MutableStateFlow(
         HandState(
             fase = "Preflop",
-            bote = 150.0,
-            apuestaRival = 25.0,
-            cartasPropias = listOf(PokerCard("A", CardSuit.SPADES), PokerCard("K", CardSuit.HEARTS)),
+            bote = 0.0,
+            apuestaRival = 0.0,
+            cartasPropias = emptyList(),
             cartasComunitarias = emptyList(),
             outs = "—",
-            winRate = "67%",
-            gtoAction = GtoAction.RAISE,
-            gtoActionValue = "3.5x",
+            winRate = "—",
+            gtoAction = GtoAction.UNKNOWN,
+            gtoActionValue = "",
             statusMessage = "Listo para capturar",
-            latencyMs = 850L
+            latencyMs = 0L
         )
     )
     val handState: StateFlow<HandState> = _handState.asStateFlow()

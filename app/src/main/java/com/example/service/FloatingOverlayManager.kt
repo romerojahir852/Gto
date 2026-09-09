@@ -61,9 +61,6 @@ class FloatingOverlayManager(
     // Single source of truth from PokerGameStateManager
     val hudState: StateFlow<HandState> = PokerGameStateManager.handState
 
-    // Simulation scenario index to rotate realistic poker situations
-    private var simulationIndex = 0
-
     // Callback for triggering actual screen frame capture from ScreenCaptureService
     var frameProvider: (() -> Bitmap?)? = null
 
@@ -230,7 +227,7 @@ class FloatingOverlayManager(
 
             if (rawBitmap != null) {
                 val currentState = PokerGameStateManager.handState.value
-                val result = repository.analyzeHand(rawBitmap, currentState)
+                val result = repository.analyzeHand(rawBitmap, currentState, context)
                 val latency = System.currentTimeMillis() - startTime
 
                 result.fold(
@@ -246,112 +243,16 @@ class FloatingOverlayManager(
                     }
                 )
             } else {
-                delay(400)
                 val latency = System.currentTimeMillis() - startTime
-                performFastSimulatedAnalysis(latency)
+                PokerGameStateManager.updateIncremental(
+                    statusMessage = "⚠️ No se pudo capturar el frame de pantalla",
+                    latencyMs = latency
+                )
             }
         }
     }
 
-    /**
-     * Fast local Texas Hold'em decision engine rotating realistic hands:
-     * - Flop: Q♥ J♥ with 10♥ 9♣ 2♥ (Flush Draw + Gutshot, 15 Outs, 54% Win, RAISE 3.5x)
-     * - Preflop: A♠ K♠ (Preflop Premium, 67% Win, 3-BET 3.5x)
-     * - Turn: 8♠ 8♦ with A♠ K♦ 8♥ 3♣ (Set de 8s, 92% Win, VALUE BET 75%)
-     * - Flop: 7♠ 6♠ with K♥ Q♦ 2♣ (Whiffed, 0 Outs, 8% Win, FOLD)
-     */
-    private fun performFastSimulatedAnalysis(latencyMs: Long) {
-        val scenarios = listOf(
-            HandState(
-                fase = "Flop",
-                bote = 240.0,
-                apuestaRival = 50.0,
-                cartasPropias = listOf(PokerCard("Q", CardSuit.HEARTS), PokerCard("J", CardSuit.HEARTS)),
-                cartasComunitarias = listOf(
-                    PokerCard("10", CardSuit.HEARTS),
-                    PokerCard("9", CardSuit.CLUBS),
-                    PokerCard("2", CardSuit.HEARTS)
-                ),
-                outs = "15-Corazones/Escalera",
-                winRate = "54%",
-                gtoAction = GtoAction.RAISE,
-                gtoActionValue = "3.5x",
-                latencyMs = latencyMs,
-                isLoading = false,
-                isExpanded = true,
-                isSimulation = true,
-                statusMessage = "Proyecto de Color ♥ + Gutshot"
-            ),
-            HandState(
-                fase = "Preflop",
-                bote = 150.0,
-                apuestaRival = 25.0,
-                cartasPropias = listOf(PokerCard("A", CardSuit.SPADES), PokerCard("K", CardSuit.SPADES)),
-                cartasComunitarias = emptyList(),
-                outs = "—",
-                winRate = "67%",
-                gtoAction = GtoAction.RAISE,
-                gtoActionValue = "3-BET",
-                latencyMs = latencyMs,
-                isLoading = false,
-                isExpanded = true,
-                isSimulation = true,
-                statusMessage = "Mano Premium Preflop"
-            ),
-            HandState(
-                fase = "Turn",
-                bote = 480.0,
-                apuestaRival = 120.0,
-                cartasPropias = listOf(PokerCard("8", CardSuit.SPADES), PokerCard("8", CardSuit.DIAMONDS)),
-                cartasComunitarias = listOf(
-                    PokerCard("A", CardSuit.SPADES),
-                    PokerCard("K", CardSuit.DIAMONDS),
-                    PokerCard("8", CardSuit.HEARTS),
-                    PokerCard("3", CardSuit.CLUBS)
-                ),
-                outs = "Full House",
-                winRate = "92%",
-                gtoAction = GtoAction.BET,
-                gtoActionValue = "75%",
-                latencyMs = latencyMs,
-                isLoading = false,
-                isExpanded = true,
-                isSimulation = true,
-                statusMessage = "Set de Ochos Conectado"
-            ),
-            HandState(
-                fase = "Flop",
-                bote = 180.0,
-                apuestaRival = 60.0,
-                cartasPropias = listOf(PokerCard("7", CardSuit.SPADES), PokerCard("6", CardSuit.SPADES)),
-                cartasComunitarias = listOf(
-                    PokerCard("K", CardSuit.HEARTS),
-                    PokerCard("Q", CardSuit.DIAMONDS),
-                    PokerCard("2", CardSuit.CLUBS)
-                ),
-                outs = "0 Outs",
-                winRate = "8%",
-                gtoAction = GtoAction.FOLD,
-                gtoActionValue = "",
-                latencyMs = latencyMs,
-                isLoading = false,
-                isExpanded = true,
-                isSimulation = true,
-                statusMessage = "Mesa desfavorable sin proyectos"
-            )
-        )
 
-        val selectedScenario = scenarios[simulationIndex % scenarios.size]
-        simulationIndex++
-
-        val currentUnit = PokerGameStateManager.handState.value.bettingUnit
-
-        PokerGameStateManager.updateState {
-            selectedScenario.copy(
-                bettingUnit = currentUnit
-            )
-        }
-    }
 
     /**
      * Updates HUD with parsed Gemini results

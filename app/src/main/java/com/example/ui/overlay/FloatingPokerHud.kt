@@ -30,6 +30,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Remove
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material3.CircularProgressIndicator
@@ -37,6 +38,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
@@ -86,6 +88,10 @@ fun FloatingPokerHud(
     onCloseCloud: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val context = LocalContext.current
+    var showApiKeyDialog by remember { mutableStateOf(false) }
+    var enteredKey by remember { mutableStateOf(com.example.data.ApiKeyManager.getApiKey(context) ?: "") }
+
     var isPressed by remember { mutableStateOf(false) }
     val buttonScale by animateFloatAsState(
         targetValue = if (isPressed) 0.92f else 1f,
@@ -375,6 +381,21 @@ fun FloatingPokerHud(
                             }
 
                             IconButton(
+                                onClick = {
+                                    enteredKey = com.example.data.ApiKeyManager.getApiKey(context) ?: ""
+                                    showApiKeyDialog = !showApiKeyDialog
+                                },
+                                modifier = Modifier.size(26.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Settings,
+                                    contentDescription = "Configurar API Key",
+                                    tint = if (com.example.data.ApiKeyManager.hasApiKey(context)) Color(0xFF00E676) else Color(0xFFFFD700),
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
+
+                            IconButton(
                                 onClick = onCloseCloud,
                                 modifier = Modifier
                                     .size(26.dp)
@@ -402,6 +423,12 @@ fun FloatingPokerHud(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(bottom = 6.dp)
+                                .clickable {
+                                    if (state.statusMessage.contains("API Key", ignoreCase = true)) {
+                                        enteredKey = com.example.data.ApiKeyManager.getApiKey(context) ?: ""
+                                        showApiKeyDialog = true
+                                    }
+                                }
                         ) {
                             Text(
                                 text = state.statusMessage,
@@ -411,6 +438,91 @@ fun FloatingPokerHud(
                                 modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
                                 maxLines = 2
                             )
+                        }
+                    }
+
+                    // API Key Settings Dialog
+                    if (showApiKeyDialog) {
+                        Surface(
+                            shape = RoundedCornerShape(10.dp),
+                            color = Color(0xFF0F172A),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF00E676)),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(bottom = 6.dp)
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(10.dp),
+                                verticalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = "🔑 Gemini API Key",
+                                        color = Color.White,
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                    IconButton(
+                                        onClick = { showApiKeyDialog = false },
+                                        modifier = Modifier.size(18.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Close,
+                                            contentDescription = "Cerrar",
+                                            tint = Color.Gray,
+                                            modifier = Modifier.size(13.dp)
+                                        )
+                                    }
+                                }
+                                Text(
+                                    text = "Ingresa tu clave de aistudio.google.com para visión en la nube, o déjalo vacío para usar OCR local offline.",
+                                    color = Color(0xFF94A3B8),
+                                    fontSize = 9.sp
+                                )
+                                androidx.compose.material3.OutlinedTextField(
+                                    value = enteredKey,
+                                    onValueChange = { enteredKey = it },
+                                    placeholder = { Text("AIzaSy...", fontSize = 10.sp, color = Color.Gray) },
+                                    singleLine = true,
+                                    textStyle = androidx.compose.ui.text.TextStyle(fontSize = 10.sp, color = Color.White),
+                                    colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
+                                        focusedBorderColor = Color(0xFF00E676),
+                                        unfocusedBorderColor = Color(0xFF334155),
+                                        focusedContainerColor = Color(0xFF1E293B),
+                                        unfocusedContainerColor = Color(0xFF1E293B)
+                                    ),
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.End
+                                ) {
+                                    androidx.compose.material3.Button(
+                                        onClick = {
+                                            if (enteredKey.isNotBlank()) {
+                                                com.example.data.ApiKeyManager.saveApiKey(context, enteredKey)
+                                                PokerGameStateManager.updateStatus("✅ API Key guardada. Pulsa Re-analizar.")
+                                            } else {
+                                                com.example.data.ApiKeyManager.clearApiKey(context)
+                                                PokerGameStateManager.updateStatus("⚡ Modo OCR Local activo")
+                                            }
+                                            showApiKeyDialog = false
+                                        },
+                                        colors = androidx.compose.material3.ButtonDefaults.buttonColors(
+                                            containerColor = Color(0xFF00E676),
+                                            contentColor = Color.Black
+                                        ),
+                                        shape = RoundedCornerShape(4.dp),
+                                        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 10.dp, vertical = 2.dp)
+                                    ) {
+                                        Text("Guardar", fontWeight = FontWeight.Bold, fontSize = 10.sp)
+                                    }
+                                }
+                            }
                         }
                     }
 

@@ -44,10 +44,12 @@ import androidx.compose.material.icons.filled.Casino
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.Layers
 import androidx.compose.material.icons.filled.OpenInNew
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Remove
+import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.Visibility
@@ -60,6 +62,8 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -84,6 +88,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.data.ApiKeyManager
 import com.example.data.BettingUnit
 import com.example.data.GTOStateManager
 import com.example.data.GeminiPokerRepository
@@ -355,6 +360,25 @@ fun PokerScreen(
                                 ScreenCaptureService.triggerFloatingAnalysis()
                             }
                         )
+                    }
+                }
+
+                item {
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        com.example.ui.components.Eyebrow(text = "Motor de Inteligencia")
+                        Text(
+                            text = "Gemini AI y OCR Local",
+                            color = Ink,
+                            fontFamily = androidx.compose.ui.text.font.FontFamily.Default,
+                            fontWeight = FontWeight.Light,
+                            fontSize = 24.sp,
+                            letterSpacing = 0.02.sp
+                        )
+                        com.example.ui.components.SectionSub(
+                            text = "Configura tu API Key de Gemini para análisis neuronal de alta fidelidad, o deja que el motor OCR local con ML Kit procese las cartas sin internet."
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        ApiKeySettingsCard()
                     }
                 }
 
@@ -1390,3 +1414,167 @@ private fun UniversalPromptCard() {
         }
     }
 }
+
+@Composable
+fun ApiKeySettingsCard(
+    modifier: Modifier = Modifier
+) {
+    val context = LocalContext.current
+    var currentKey by remember { mutableStateOf(ApiKeyManager.getApiKey(context)) }
+    var inputKey by remember { mutableStateOf("") }
+    var saveSuccess by remember { mutableStateOf(false) }
+    val isConfigured = ApiKeyManager.isConfigured(context)
+
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(14.dp),
+        colors = CardDefaults.cardColors(containerColor = BgSoft),
+        border = androidx.compose.foundation.BorderStroke(1.dp, Line)
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Key,
+                        contentDescription = null,
+                        tint = if (isConfigured) Color(0xFF10B981) else Color(0xFFF59E0B),
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Text(
+                        text = if (isConfigured) "Gemini 2.5 Flash Activo" else "OCR Local ML Kit Activo",
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Ink
+                    )
+                }
+
+                Surface(
+                    shape = RoundedCornerShape(999.dp),
+                    color = if (isConfigured) Color(0xFFECFDF5) else Color(0xFFFEF3C7),
+                    border = androidx.compose.foundation.BorderStroke(
+                        1.dp,
+                        if (isConfigured) Color(0xFFA7F3D0) else Color(0xFFFDE68A)
+                    )
+                ) {
+                    Text(
+                        text = if (isConfigured) "Nube Online" else "Offline / ML Kit",
+                        color = if (isConfigured) Color(0xFF047857) else Color(0xFFB45309),
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                    )
+                }
+            }
+
+            Text(
+                text = if (isConfigured) {
+                    "Tu clave API está configurada (${ApiKeyManager.getMaskedKey(context)}). La visión multimodal de Gemini 2.5 Flash analizará las capturas de pantalla con máxima fidelidad."
+                } else {
+                    "Sin API Key configurada. El motor OCR Local integrado (ML Kit) lee las cartas en el dispositivo sin internet. Para activar Gemini AI, ingresa tu clave gratuita de Google AI Studio."
+                },
+                fontSize = 12.sp,
+                color = Ink2,
+                lineHeight = 16.sp
+            )
+
+            OutlinedTextField(
+                value = inputKey,
+                onValueChange = {
+                    inputKey = it
+                    saveSuccess = false
+                },
+                placeholder = {
+                    Text(
+                        text = if (isConfigured) "Reemplazar API Key..." else "Pega tu Gemini API Key (AIzaSy...)",
+                        fontSize = 12.sp,
+                        color = Ink3
+                    )
+                },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                textStyle = androidx.compose.ui.text.TextStyle(
+                    fontSize = 12.sp,
+                    fontFamily = FontFamily.Monospace,
+                    color = Ink
+                ),
+                shape = RoundedCornerShape(10.dp),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = Color(0xFF10B981),
+                    unfocusedBorderColor = Line2,
+                    focusedContainerColor = BgWhite,
+                    unfocusedContainerColor = BgWhite
+                )
+            )
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                if (isConfigured) {
+                    OutlinedButton(
+                        onClick = {
+                            ApiKeyManager.clearApiKey(context)
+                            currentKey = ""
+                            inputKey = ""
+                            saveSuccess = false
+                        },
+                        shape = RoundedCornerShape(8.dp),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFEF4444))
+                    ) {
+                        Icon(Icons.Default.Delete, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Quitar", fontSize = 12.sp)
+                    }
+                } else {
+                    Spacer(modifier = Modifier.width(1.dp))
+                }
+
+                Button(
+                    onClick = {
+                        if (inputKey.isNotBlank()) {
+                            ApiKeyManager.saveApiKey(context, inputKey)
+                            currentKey = inputKey
+                            inputKey = ""
+                            saveSuccess = true
+                        }
+                    },
+                    enabled = inputKey.isNotBlank(),
+                    shape = RoundedCornerShape(8.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF10B981))
+                ) {
+                    Icon(Icons.Default.Save, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("Guardar Clave", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                }
+            }
+
+            if (saveSuccess) {
+                Surface(
+                    shape = RoundedCornerShape(6.dp),
+                    color = Color(0xFFECFDF5),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        text = "✓ ¡API Key guardada con éxito! Gemini Flash activado.",
+                        color = Color(0xFF047857),
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Medium,
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                    )
+                }
+            }
+        }
+    }
+}
+
