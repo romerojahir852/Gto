@@ -115,7 +115,8 @@ class GeminiPokerRepository {
                 "REGLA 2 (CARTAS COMUNITARIAS): Las cartas comunitarias (Flop, Turn, River) están alineadas exclusivamente en el CENTRO de la mesa. Si no hay cartas comunitarias, la fase es Preflop. " +
                 "REGLA 3 (JUGADORES Y DEALER): En el panorama de la mesa, contabiliza el número total de jugadores activos (entre 2 y 9) y localiza la posición del botón del Dealer ('D'). Identifica la posición del jugador: BTN, SB, BB, UTG, MP, CO. " +
                 "REGLA 4: Ignora animaciones y emojis. Diferencia palos rojos (Corazones h/Diamantes d) de negros (Picas s/Tréboles c). " +
-                "Responde ÚNICAMENTE con este formato Regex-ready: Cartas:[ValorPalo] | Mesa:[ValorPalo] | Jugadores:[2-9] | Dealer:[Posición] | MiPosicion:[Posición] | Fase:[Preflop/Flop/Turn/River] | Outs:[Numero] | Win:[X]% | GTO:[Acción y Tamaño]. Cero explicaciones."
+                "Responde ÚNICAMENTE en formato JSON estricto con las siguientes claves: " +
+                "\"cartas\" (ValorPalo), \"mesa\" (ValorPalo, vacío si no hay), \"jugadores\" (Int), \"dealer\" (Posición), \"miPosicion\" (Posición), \"fase\" (Preflop/Flop/Turn/River), \"outs\" (String), \"win\" (String), \"gto\" (Acción y Tamaño)."
     }
 
     private data class GeminiCallResult(
@@ -303,12 +304,7 @@ class GeminiPokerRepository {
                         })
                     })
                     put("generationConfig", buildJsonObject {
-                        // Solo parámetros válidos en Gemini 3.x Flash.
-                        // NO temperature, NO top_p, NO top_k: HTTP 400.
-                        // NO presence_penalty, NO frequency_penalty.
-                        put("thinkingConfig", buildJsonObject {
-                            put("thinkingLevel", "low")
-                        })
+                        put("responseMimeType", "application/json")
                         put("maxOutputTokens", 400)
                     })
 
@@ -454,75 +450,62 @@ class GeminiPokerRepository {
         var detectedMyPos = currentState.posicion
         var parsedFase: String? = null
 
-        val parts = rawText.split("|", "\n").map { it.trim() }.filter { it.isNotEmpty() }
-
-        for (part in parts) {
-            val lower = part.lowercase()
-            when {
-                lower.startsWith("cartas:") || lower.startsWith("mano:") -> {
-                    val value = part.substringAfter(":").trim().replace("[", "").replace("]", "")
-                    val parsed = PokerCard.parseMultiple(value)
-                    if (parsed.isNotEmpty()) {
-                        holeCards = parsed.take(2)
-                        if (parsed.size > 2) {
-                            communityCards = parsed.drop(2)
-                        }
-                    }
-                }
-                lower.startsWith("mesa:") || lower.startsWith("comunitarias:") -> {
-                    val value = part.substringAfter(":").trim().replace("[", "").replace("]", "")
-                    if (value != "-" && !value.equals("ninguna", ignoreCase = true)) {
-                        val parsed = PokerCard.parseMultiple(value)
-                        if (parsed.isNotEmpty()) {
-                            communityCards = parsed
-                        }
-                    }
-                }
-                lower.startsWith("jugadores:") || lower.startsWith("players:") -> {
-                    val value = part.substringAfter(":").trim().replace("[", "").replace("]", "")
-                    val count = value.filter { it.isDigit() }.toIntOrNull()
-                    if (count != null && count in 2..9) {
-                        detectedPlayers = count
-                    }
-                }
-                lower.startsWith("dealer:") || lower.startsWith("btn:") || lower.startsWith("boton:") -> {
-                    val value = part.substringAfter(":").trim().replace("[", "").replace("]", "").uppercase()
-                    if (value.isNotBlank()) {
-                        detectedDealer = value
-                    }
-                }
-                lower.startsWith("miposicion:") || lower.startsWith("posicion:") || lower.startsWith("pos:") -> {
-                    val value = part.substringAfter(":").trim().replace("[", "").replace("]", "").uppercase()
-                    if (value.isNotBlank()) {
-                        detectedMyPos = value
-                    }
-                }
-                lower.startsWith("fase:") || lower.startsWith("street:") -> {
-                    val value = part.substringAfter(":").trim().replace("[", "").replace("]", "")
-                    if (value.isNotBlank()) {
-                        parsedFase = value.replaceFirstChar { it.uppercase() }
-                    }
-                }
-                lower.startsWith("outs:") -> {
-                    val value = part.substringAfter(":").trim().replace("[", "").replace("]", "")
-                    outs = if (value.isBlank() || value == "-") "0 Outs" else value
-                }
-                lower.startsWith("win:") || lower.startsWith("win%:") -> {
-                    val rawWin = part.substringAfter(":").trim().replace("[", "").replace("]", "")
-                    winRate = if (rawWin.endsWith("%") || rawWin == "-") rawWin else "$rawWin%"
-                }
-                lower.startsWith("gto:") -> {
-                    val rawGto = part.substringAfter(":").trim().replace("[", "").replace("]", "")
-                    gtoAction = GtoAction.fromString(rawGto)
-                    gtoActionValue = if (rawGto.contains("-")) {
-                        rawGto.substringAfter("-").trim()
-                    } else if (rawGto.contains(" ")) {
-                        rawGto.substringAfter(" ").trim()
-                    } else {
-                        ""
-                    }
+        try {
+            val jsonObj = json.parseToJsonElement(rawText).jsonObject
+            
+            jsonObj["cartas"]?.jsonPrimitive?.contentOrNull?.let { value ->
+                val parsed = PokerCard.parseMultiple(value)
+                if (parsed.isNotEmpty()) {
+                    holeCards = parsed.take(2)
+                    if (parsed.size > 2) communityCards = parsed.drop(2)
                 }
             }
+            
+            jsonObj["mesa"]?.jsonPrimitive?.contentOrNull?.let { value ->
+                if (value.isNotBlank() && value != "-" && !value.equals("ninguna", ignoreCase = true)) {
+                    val parsed = PokerCard.parseMultiple(value)
+                    if (parsed.isNotEmpty()) communityCards = parsed
+                }
+            }
+            
+            jsonObj["jugadores"]?.jsonPrimitive?.contentOrNull?.toIntOrNull()?.let { count ->
+                if (count in 2..9) detectedPlayers = count
+            }
+            
+            jsonObj["dealer"]?.jsonPrimitive?.contentOrNull?.let { value ->
+                if (value.isNotBlank()) detectedDealer = value.uppercase().trim()
+            }
+            
+            jsonObj["miPosicion"]?.jsonPrimitive?.contentOrNull?.let { value ->
+                if (value.isNotBlank()) detectedMyPos = value.uppercase().trim()
+            }
+            
+            jsonObj["fase"]?.jsonPrimitive?.contentOrNull?.let { value ->
+                if (value.isNotBlank()) parsedFase = value.replaceFirstChar { it.uppercase() }.trim()
+            }
+            
+            jsonObj["outs"]?.jsonPrimitive?.contentOrNull?.let { value ->
+                outs = if (value.isBlank() || value == "-") "0 Outs" else value.trim()
+            }
+            
+            jsonObj["win"]?.jsonPrimitive?.contentOrNull?.let { value ->
+                val rawWin = value.trim()
+                winRate = if (rawWin.endsWith("%") || rawWin == "-") rawWin else "$rawWin%"
+            }
+            
+            jsonObj["gto"]?.jsonPrimitive?.contentOrNull?.let { value ->
+                val rawGto = value.trim()
+                gtoAction = GtoAction.fromString(rawGto)
+                gtoActionValue = if (rawGto.contains("-")) {
+                    rawGto.substringAfter("-").trim()
+                } else if (rawGto.contains(" ")) {
+                    rawGto.substringAfter(" ").trim()
+                } else {
+                    ""
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error parsing JSON response: $rawText", e)
         }
 
         val detectedFase = parsedFase ?: when (communityCards.size) {

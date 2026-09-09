@@ -181,8 +181,8 @@ data class PokerAnalysisResult(
 @Immutable
 data class HandState(
     val fase: String = "Preflop", // Preflop, Flop, Turn, River
-    val bote: String = "150 BB",
-    val apuestaRival: String = "25 BB",
+    val bote: Double = 150.0,
+    val apuestaRival: Double = 25.0,
     val cartasPropias: List<PokerCard> = emptyList(),
     val cartasComunitarias: List<PokerCard> = emptyList(),
     val outs: String = "—",
@@ -207,24 +207,24 @@ data class HandState(
     val displayBote: String
         get() = when (bettingUnit) {
             BettingUnit.BB -> {
-                val clean = bote.replace("$", "").replace("€", "").trim()
-                if (clean.endsWith("BB", ignoreCase = true)) clean else "$clean BB"
+                val formatted = if (bote % 1.0 == 0.0) bote.toInt().toString() else bote.toString()
+                "$formatted BB"
             }
             BettingUnit.CHIPS -> {
-                val clean = bote.replace("BB", "", ignoreCase = true).trim()
-                if (clean.startsWith("$") || clean.startsWith("€") || clean.startsWith("fichas", ignoreCase = true)) clean else "$$clean"
+                val formatted = if (bote % 1.0 == 0.0) bote.toInt().toString() else bote.toString()
+                "$$formatted"
             }
         }
 
     val displayApuestaRival: String
         get() = when (bettingUnit) {
             BettingUnit.BB -> {
-                val clean = apuestaRival.replace("$", "").replace("€", "").trim()
-                if (clean.endsWith("BB", ignoreCase = true)) clean else "$clean BB"
+                val formatted = if (apuestaRival % 1.0 == 0.0) apuestaRival.toInt().toString() else apuestaRival.toString()
+                "$formatted BB"
             }
             BettingUnit.CHIPS -> {
-                val clean = apuestaRival.replace("BB", "", ignoreCase = true).trim()
-                if (clean.startsWith("$") || clean.startsWith("€") || clean.startsWith("fichas", ignoreCase = true)) clean else "$$clean"
+                val formatted = if (apuestaRival % 1.0 == 0.0) apuestaRival.toInt().toString() else apuestaRival.toString()
+                "$$formatted"
             }
         }
 
@@ -315,8 +315,8 @@ object PokerGameStateManager {
     private val _handState = MutableStateFlow(
         HandState(
             fase = "Preflop",
-            bote = "150 BB",
-            apuestaRival = "25 BB",
+            bote = 150.0,
+            apuestaRival = 25.0,
             cartasPropias = listOf(PokerCard("A", CardSuit.SPADES), PokerCard("K", CardSuit.HEARTS)),
             cartasComunitarias = emptyList(),
             outs = "—",
@@ -347,8 +347,8 @@ object PokerGameStateManager {
 
     fun updateIncremental(
         fase: String? = null,
-        bote: String? = null,
-        apuestaRival: String? = null,
+        bote: Double? = null,
+        apuestaRival: Double? = null,
         cartasPropias: List<PokerCard>? = null,
         cartasComunitarias: List<PokerCard>? = null,
         outs: String? = null,
@@ -409,30 +409,8 @@ object PokerGameStateManager {
 
     fun setBettingUnit(unit: BettingUnit) {
         _handState.update { current ->
-            val newBote = when (unit) {
-                BettingUnit.BB -> {
-                    val clean = current.bote.replace("$", "").replace("€", "").trim()
-                    if (clean.endsWith("BB", ignoreCase = true)) clean else "$clean BB"
-                }
-                BettingUnit.CHIPS -> {
-                    val clean = current.bote.replace("BB", "", ignoreCase = true).trim()
-                    if (clean.startsWith("$") || clean.startsWith("€") || clean.startsWith("fichas", ignoreCase = true)) clean else "$$clean"
-                }
-            }
-            val newApuesta = when (unit) {
-                BettingUnit.BB -> {
-                    val clean = current.apuestaRival.replace("$", "").replace("€", "").trim()
-                    if (clean.endsWith("BB", ignoreCase = true)) clean else "$clean BB"
-                }
-                BettingUnit.CHIPS -> {
-                    val clean = current.apuestaRival.replace("BB", "", ignoreCase = true).trim()
-                    if (clean.startsWith("$") || clean.startsWith("€") || clean.startsWith("fichas", ignoreCase = true)) clean else "$$clean"
-                }
-            }
             current.copy(
-                bettingUnit = unit,
-                bote = newBote,
-                apuestaRival = newApuesta
+                bettingUnit = unit
             )
         }
     }

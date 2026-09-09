@@ -269,8 +269,8 @@ class FloatingOverlayManager(
         val scenarios = listOf(
             HandState(
                 fase = "Flop",
-                bote = "240 BB",
-                apuestaRival = "50 BB",
+                bote = 240.0,
+                apuestaRival = 50.0,
                 cartasPropias = listOf(PokerCard("Q", CardSuit.HEARTS), PokerCard("J", CardSuit.HEARTS)),
                 cartasComunitarias = listOf(
                     PokerCard("10", CardSuit.HEARTS),
@@ -289,8 +289,8 @@ class FloatingOverlayManager(
             ),
             HandState(
                 fase = "Preflop",
-                bote = "150 BB",
-                apuestaRival = "25 BB",
+                bote = 150.0,
+                apuestaRival = 25.0,
                 cartasPropias = listOf(PokerCard("A", CardSuit.SPADES), PokerCard("K", CardSuit.SPADES)),
                 cartasComunitarias = emptyList(),
                 outs = "—",
@@ -305,8 +305,8 @@ class FloatingOverlayManager(
             ),
             HandState(
                 fase = "Turn",
-                bote = "480 BB",
-                apuestaRival = "120 BB",
+                bote = 480.0,
+                apuestaRival = 120.0,
                 cartasPropias = listOf(PokerCard("8", CardSuit.SPADES), PokerCard("8", CardSuit.DIAMONDS)),
                 cartasComunitarias = listOf(
                     PokerCard("A", CardSuit.SPADES),
@@ -326,8 +326,8 @@ class FloatingOverlayManager(
             ),
             HandState(
                 fase = "Flop",
-                bote = "180 BB",
-                apuestaRival = "60 BB",
+                bote = 180.0,
+                apuestaRival = 60.0,
                 cartasPropias = listOf(PokerCard("7", CardSuit.SPADES), PokerCard("6", CardSuit.SPADES)),
                 cartasComunitarias = listOf(
                     PokerCard("K", CardSuit.HEARTS),
@@ -350,23 +350,9 @@ class FloatingOverlayManager(
         simulationIndex++
 
         val currentUnit = PokerGameStateManager.handState.value.bettingUnit
-        val adjustedBote = if (currentUnit == BettingUnit.CHIPS) {
-            val num = selectedScenario.bote.replace("BB", "").trim().toIntOrNull() ?: 100
-            "$${num * 10}"
-        } else {
-            selectedScenario.bote
-        }
-        val adjustedApuesta = if (currentUnit == BettingUnit.CHIPS) {
-            val num = selectedScenario.apuestaRival.replace("BB", "").trim().toIntOrNull() ?: 20
-            "$${num * 10}"
-        } else {
-            selectedScenario.apuestaRival
-        }
 
         PokerGameStateManager.updateState {
             selectedScenario.copy(
-                bote = adjustedBote,
-                apuestaRival = adjustedApuesta,
                 bettingUnit = currentUnit
             )
         }

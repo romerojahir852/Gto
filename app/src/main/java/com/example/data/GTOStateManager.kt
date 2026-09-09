@@ -27,8 +27,8 @@ object GTOStateManager {
     private val _faseActual = MutableStateFlow("Flop")
     val faseActual: StateFlow<String> = _faseActual.asStateFlow()
 
-    private val _potSize = MutableStateFlow("150 BB")
-    val potSize: StateFlow<String> = _potSize.asStateFlow()
+    private val _potSize = MutableStateFlow(150.0)
+    val potSize: StateFlow<Double> = _potSize.asStateFlow()
 
     private val _dealerPosition = MutableStateFlow("BTN")
     val dealerPosition: StateFlow<String> = _dealerPosition.asStateFlow()
@@ -106,9 +106,9 @@ object GTOStateManager {
         }
     }
 
-    fun setPotSize(pot: String) {
-        if (pot.isNotBlank()) {
-            _potSize.value = pot.trim()
+    fun setPotSize(pot: Double) {
+        if (pot > 0) {
+            _potSize.value = pot
             syncToGameState()
         }
     }
@@ -134,13 +134,13 @@ object GTOStateManager {
      */
     fun updateFromAnalysis(
         fase: String?,
-        bote: String?,
+        bote: Double?,
         jugadores: Int? = null,
         dealerPos: String? = null,
         myPos: String? = null
     ) {
         fase?.let { if (it.isNotBlank()) _faseActual.value = it }
-        bote?.let { if (it.isNotBlank()) _potSize.value = it }
+        bote?.let { if (it > 0) _potSize.value = it }
         jugadores?.let { if (it in 2..9) _numeroJugadoresActivos.value = it }
         dealerPos?.let { if (it.isNotBlank()) _dealerPosition.value = it.uppercase().trim() }
         myPos?.let { if (it.isNotBlank()) _miPosicion.value = it.uppercase().trim() }

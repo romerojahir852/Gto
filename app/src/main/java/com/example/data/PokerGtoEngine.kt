@@ -28,8 +28,8 @@ object PokerGtoEngine {
         jugadores: Int,
         posicion: String,
         fase: String,
-        bote: String = "150 BB",
-        apuestaRival: String = "25 BB"
+        bote: Double = 150.0,
+        apuestaRival: Double = 25.0
     ): GtoDecision {
         if (holeCards.isEmpty()) {
             return GtoDecision(
