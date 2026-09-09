@@ -46,7 +46,7 @@ fun BottomActionBar(
                 verticalArrangement = Arrangement.spacedBy(2.dp)
             ) {
                 Text(
-                    text = "ANÁLISIS GTO",
+                    text = "ASISTENTE EN VIVO",
                     color = colors.textPrimary,
                     fontFamily = androidx.compose.ui.text.font.FontFamily.Default,
                     fontWeight = FontWeight.Bold,
@@ -54,7 +54,7 @@ fun BottomActionBar(
                     letterSpacing = 0.5.sp
                 )
                 Text(
-                    text = "Gemini 3.8 / 3.7 Flash · Visión Óptica",
+                    text = "Lectura de mesa en tiempo real • Cálculo GTO",
                     color = colors.textMuted,
                     fontSize = 11.sp,
                     letterSpacing = 0.08.sp
@@ -64,9 +64,10 @@ fun BottomActionBar(
                 onClick = onAnalyzeNow,
                 enabled = !isAnalyzing,
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = if (colors.isDark) colors.accentGreen else colors.border,
-                    contentColor = if (colors.isDark) Color.Black else Color.White
+                    containerColor = colors.accentSelected,
+                    contentColor = colors.accentSelectedText
                 ),
+                border = androidx.compose.foundation.BorderStroke(1.dp, colors.accentGold),
                 shape = RoundedCornerShape(999.dp),
                 modifier = Modifier.height(44.dp)
             ) {

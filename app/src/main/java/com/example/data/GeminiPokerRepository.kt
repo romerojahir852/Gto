@@ -217,22 +217,7 @@ class GeminiPokerRepository {
         // MOTOR ON-DEVICE: Detección visual OCR local directa sobre el frame
         Log.d("OCR_LOCAL", "Ejecutando escaneo visual OCR local en dispositivo")
         val localState = com.example.service.LocalCardOcrDetector.detect(compressedBitmap, currentState)
-        val finalStatus = if (apiKey.isNullOrBlank()) {
-            localState.statusMessage + " • 🔑 Toca para ingresar API Key"
-        } else if (!geminiFailureReason.isNullOrBlank()) {
-            val shortErr = if (geminiFailureReason.contains("400") || geminiFailureReason.contains("API key not valid", ignoreCase = true)) {
-                "API Key inválida"
-            } else if (geminiFailureReason.contains("429") || geminiFailureReason.contains("RESOURCE_EXHAUSTED", ignoreCase = true)) {
-                "Cuota agotada"
-            } else if (geminiFailureReason.contains("Timeout", ignoreCase = true)) {
-                "Timeout de red"
-            } else {
-                geminiFailureReason.take(20)
-            }
-            "${localState.statusMessage} • Nube: $shortErr"
-        } else {
-            localState.statusMessage
-        }
+        val finalStatus = localState.statusMessage
         val finalResult = localState.copy(statusMessage = finalStatus)
 
         PokerGameStateManager.updateIncremental(

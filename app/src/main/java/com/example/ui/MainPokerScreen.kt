@@ -179,7 +179,7 @@ fun MainPokerScreen(
                     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         com.example.ui.components.Eyebrow(text = "Fase de la mano")
                         Text(
-                            text = "Prompt optimizado GTO",
+                            text = "Estrategia por Ronda",
                             color = Ink,
                             fontFamily = androidx.compose.ui.text.font.FontFamily.Default,
                             fontWeight = FontWeight.Light,
@@ -187,7 +187,7 @@ fun MainPokerScreen(
                             letterSpacing = 0.02.sp
                         )
                         com.example.ui.components.SectionSub(
-                            text = "Elige la fase o usa el simulador. El prompt se adapta al contexto para extraer la jugada GTO."
+                            text = "Elige la fase o usa el simulador para consultar la jugada GTO óptima en cada ronda."
                         )
                         Spacer(modifier = Modifier.height(8.dp))
                         StreetSelectorTabs(
@@ -249,15 +249,15 @@ fun MainPokerScreen(
                                 Column {
                                     Text(
                                         text = if (uiState is AnalysisUiState.Capturing)
-                                            "Leyendo fotograma de pantalla..."
+                                            "Leyendo mesa de póker..."
                                         else
-                                            "Calculando Outs, Equity y GTO con Gemini...",
+                                            "Calculando Outs, Equity y Jugada GTO...",
                                         style = MaterialTheme.typography.bodyMedium,
                                         fontWeight = FontWeight.Bold,
                                         color = Ink
                                     )
                                     Text(
-                                        text = "Visión multirresolución de alta fidelidad con Gemini Serie 3 Flash",
+                                        text = "Lectura de mesa en vivo • Cálculo de probabilidades",
                                         style = MaterialTheme.typography.bodySmall,
                                         color = Ink3
                                     )

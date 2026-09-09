@@ -78,7 +78,7 @@ fun PokerHudOverlay(
                             .background(if (isAnalyzing) colors.accentGold else colors.accentGreen)
                     )
                     Text(
-                        text = if (isAnalyzing) "Analizando con Gemini 3.8..." else "Análisis GTO en Tiempo Real",
+                        text = if (isAnalyzing) "Analizando mesa de juego..." else "Análisis GTO en Tiempo Real",
                         color = colors.textPrimary,
                         fontSize = 15.sp,
                         fontWeight = FontWeight.Bold
@@ -354,7 +354,7 @@ fun PokerHudOverlay(
                         fontWeight = FontWeight.Medium
                     )
                     Text(
-                        text = "Pulsa 'Capturar y Evaluar con Gemini' para analizar la mesa",
+                        text = "Pulsa 'Capturar y Evaluar' para analizar la mesa",
                         color = colors.textMuted,
                         fontSize = 12.sp
                     )

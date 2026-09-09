@@ -49,6 +49,7 @@ import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.Layers
 import androidx.compose.material.icons.filled.OpenInNew
@@ -66,6 +67,9 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
@@ -96,7 +100,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.data.ApiKeyManager
 import com.example.data.BettingUnit
 import com.example.data.GTOStateManager
 import com.example.data.GeminiPokerRepository
@@ -127,7 +130,16 @@ fun PokerScreen(
     val selectedPreset by viewModel.selectedPreset.collectAsState()
     val currentPreviewBitmap by viewModel.currentPreviewBitmap.collectAsState()
     val handState by PokerGameStateManager.handState.collectAsState()
-    var showApiKeyModal by remember { mutableStateOf(false) }
+
+    // Control de Pestañas de Navegación Móvil (0: En Vivo, 1: Mesa GTO, 2: Ajustes)
+    var selectedTab by remember { mutableStateOf(0) }
+
+    // Estados de Modales Informativos Interactivos
+    var showOverlayInfoModal by remember { mutableStateOf(false) }
+    var showStreetInfoModal by remember { mutableStateOf(false) }
+    var showTableInfoModal by remember { mutableStateOf(false) }
+    var showGlossaryModal by remember { mutableStateOf(false) }
+    var showQuickGuideModal by remember { mutableStateOf(false) }
 
     var overlayCheckCounter by remember { mutableStateOf(0) }
     val canDrawOverlays = remember(overlayCheckCounter, isServiceRunning) {
@@ -144,7 +156,7 @@ fun PokerScreen(
         overlayCheckCounter++
     }
 
-    // ActivityResultLauncher for MediaProjection screen capture consent
+    // ActivityResultLauncher para consentimiento de captura de pantalla
     val mediaProjectionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
     ) { result ->
@@ -171,28 +183,28 @@ fun PokerScreen(
                 title = {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
                         Box(
                             modifier = Modifier
-                                .size(38.dp)
+                                .size(34.dp)
                                 .clip(CircleShape)
                                 .background(AppTheme.colors.textPrimary)
-                                .border(AppTheme.colors.borderWidth, AppTheme.colors.border, CircleShape),
+                                .border(1.5.dp, AppTheme.colors.accentGold, CircleShape),
                             contentAlignment = Alignment.Center
                         ) {
                             Text(
                                 text = "♠",
-                                color = AppTheme.colors.surface,
-                                fontSize = 18.sp,
+                                color = AppTheme.colors.accentGold,
+                                fontSize = 16.sp,
                                 fontWeight = FontWeight.Black
                             )
                         }
                         Text(
-                            text = "POKER GTO VISION",
+                            text = "POKER GTO",
                             color = AppTheme.colors.textPrimary,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Black,
+                            fontSize = 15.sp,
                             letterSpacing = 0.5.sp
                         )
                     }
@@ -200,54 +212,45 @@ fun PokerScreen(
                 actions = {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.padding(end = 8.dp)
+                        modifier = Modifier.padding(end = 8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
                         IconButton(
                             onClick = { AppThemeManager.toggleTheme(context) },
-                            modifier = Modifier.padding(end = 2.dp)
+                            modifier = Modifier.size(36.dp)
                         ) {
                             Icon(
                                 imageVector = if (isDarkTheme) Icons.Default.LightMode else Icons.Default.DarkMode,
-                                contentDescription = if (isDarkTheme) "Cambiar a Modo Claro" else "Cambiar a Modo Oscuro",
-                                tint = AppTheme.colors.textPrimary,
-                                modifier = Modifier.size(22.dp)
+                                contentDescription = "Cambiar Tema",
+                                tint = AppTheme.colors.accentGold,
+                                modifier = Modifier.size(20.dp)
                             )
                         }
 
-                        IconButton(
-                            onClick = { showApiKeyModal = true },
-                            modifier = Modifier.padding(end = 4.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Key,
-                                contentDescription = "Configurar Gemini API Key",
-                                tint = if (ApiKeyManager.hasApiKey(context)) Color(0xFF10B981) else Color(0xFFF59E0B),
-                                modifier = Modifier.size(22.dp)
-                            )
-                        }
 
-                        androidx.compose.material3.Surface(
+
+                        Surface(
                             shape = RoundedCornerShape(999.dp),
-                            color = if (isServiceRunning) Color(0xFFECFDF5) else AppTheme.colors.surface,
+                            color = if (isServiceRunning) Color(0xFFECFDF5) else AppTheme.colors.surfaceVariant,
                             border = androidx.compose.foundation.BorderStroke(
-                                AppTheme.colors.borderWidth,
-                                if (isServiceRunning) Color(0xFF10B981) else AppTheme.colors.border
+                                1.dp,
+                                if (isServiceRunning) AppTheme.colors.accentGreen else AppTheme.colors.borderSubtle
                             )
                         ) {
                             Row(
-                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
                                 verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                horizontalArrangement = Arrangement.spacedBy(5.dp)
                             ) {
                                 Box(
                                     modifier = Modifier
                                         .size(6.dp)
                                         .clip(CircleShape)
-                                        .background(if (isServiceRunning) Color(0xFF10B981) else AppTheme.colors.textMuted)
+                                        .background(if (isServiceRunning) AppTheme.colors.accentGreen else AppTheme.colors.textMuted)
                                 )
                                 Text(
-                                    text = if (isServiceRunning) "Captura activa" else "Captura inactiva",
-                                    color = if (isServiceRunning) Color(0xFF047857) else AppTheme.colors.textSecondary,
+                                    text = if (isServiceRunning) "En Vivo" else "Pausado",
+                                    color = if (isServiceRunning) AppTheme.colors.accentGreen else AppTheme.colors.textSecondary,
                                     fontSize = 10.sp,
                                     fontWeight = FontWeight.Bold
                                 )
@@ -256,152 +259,119 @@ fun PokerScreen(
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = AppTheme.colors.background.copy(alpha = 0.95f)
+                    containerColor = AppTheme.colors.background.copy(alpha = 0.98f)
                 )
             )
         },
         bottomBar = {
-            BottomActionBar(
-                isServiceRunning = isServiceRunning,
-                isAnalyzing = isAnalyzing,
-                onAnalyzeNow = {
-                    if (isServiceRunning) {
-                        viewModel.triggerScreenCapture()
-                    } else if (canDrawOverlays) {
-                        val mpManager = context.getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
-                        mediaProjectionLauncher.launch(mpManager.createScreenCaptureIntent())
-                    } else {
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                            val intent = Intent(
-                                Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                                Uri.parse("package:${context.packageName}")
-                            )
-                            overlayPermissionLauncher.launch(intent)
-                        }
-                    }
-                }
-            )
+            // Barra de Navegación Nativa Móvil con Estética Poker Casino
+            NavigationBar(
+                containerColor = AppTheme.colors.surface,
+                tonalElevation = 6.dp,
+                modifier = Modifier.border(1.dp, AppTheme.colors.borderSubtle)
+            ) {
+                NavigationBarItem(
+                    selected = selectedTab == 0,
+                    onClick = { selectedTab = 0 },
+                    icon = {
+                        Icon(
+                            imageVector = Icons.Default.Visibility,
+                            contentDescription = "En Vivo",
+                            modifier = Modifier.size(20.dp)
+                        )
+                    },
+                    label = {
+                        Text(
+                            text = "En Vivo",
+                            fontWeight = if (selectedTab == 0) FontWeight.Black else FontWeight.Medium,
+                            fontSize = 11.sp
+                        )
+                    },
+                    colors = NavigationBarItemDefaults.colors(
+                        selectedIconColor = AppTheme.colors.accentGold,
+                        selectedTextColor = AppTheme.colors.textPrimary,
+                        indicatorColor = AppTheme.colors.textPrimary,
+                        unselectedIconColor = AppTheme.colors.textMuted,
+                        unselectedTextColor = AppTheme.colors.textMuted
+                    )
+                )
+
+                NavigationBarItem(
+                    selected = selectedTab == 1,
+                    onClick = { selectedTab = 1 },
+                    icon = {
+                        Icon(
+                            imageVector = Icons.Default.Casino,
+                            contentDescription = "Mesa GTO",
+                            modifier = Modifier.size(20.dp)
+                        )
+                    },
+                    label = {
+                        Text(
+                            text = "Mesa GTO",
+                            fontWeight = if (selectedTab == 1) FontWeight.Black else FontWeight.Medium,
+                            fontSize = 11.sp
+                        )
+                    },
+                    colors = NavigationBarItemDefaults.colors(
+                        selectedIconColor = AppTheme.colors.accentGold,
+                        selectedTextColor = AppTheme.colors.textPrimary,
+                        indicatorColor = AppTheme.colors.textPrimary,
+                        unselectedIconColor = AppTheme.colors.textMuted,
+                        unselectedTextColor = AppTheme.colors.textMuted
+                    )
+                )
+
+                NavigationBarItem(
+                    selected = selectedTab == 2,
+                    onClick = { selectedTab = 2 },
+                    icon = {
+                        Icon(
+                            imageVector = Icons.Default.Info,
+                            contentDescription = "Ajustes",
+                            modifier = Modifier.size(20.dp)
+                        )
+                    },
+                    label = {
+                        Text(
+                            text = "Ajustes",
+                            fontWeight = if (selectedTab == 2) FontWeight.Black else FontWeight.Medium,
+                            fontSize = 11.sp
+                        )
+                    },
+                    colors = NavigationBarItemDefaults.colors(
+                        selectedIconColor = AppTheme.colors.accentGold,
+                        selectedTextColor = AppTheme.colors.textPrimary,
+                        indicatorColor = AppTheme.colors.textPrimary,
+                        unselectedIconColor = AppTheme.colors.textMuted,
+                        unselectedTextColor = AppTheme.colors.textMuted
+                    )
+                )
+            }
         },
         containerColor = AppTheme.colors.background,
         modifier = modifier.fillMaxSize()
     ) { innerPadding ->
-        Box(modifier = Modifier.fillMaxSize()) {
+        Box(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
             BackgroundGeometry(modifier = Modifier.fillMaxSize())
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(innerPadding)
-                    .padding(horizontal = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                item { Spacer(modifier = Modifier.height(4.dp)) }
 
-                item {
-                    TopApiKeyStatusBanner(
-                        isConfigured = ApiKeyManager.isConfigured(context),
-                        maskedKey = ApiKeyManager.getMaskedKey(context),
-                        onClick = { showApiKeyModal = true }
-                    )
-                }
+            when (selectedTab) {
+                0 -> {
+                    // PESTAÑA 0: EN VIVO (Mesa en Vivo & HUD)
+                    LazyColumn(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(horizontal = 16.dp),
+                        verticalArrangement = Arrangement.spacedBy(14.dp)
+                    ) {
+                        item { Spacer(modifier = Modifier.height(4.dp)) }
 
-                item {
-                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        com.example.ui.components.Eyebrow(text = "Fase de la mano")
-                        Text(
-                            text = "Prompt optimizado GTO",
-                            color = AppTheme.colors.textPrimary,
-                            fontFamily = androidx.compose.ui.text.font.FontFamily.Default,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 22.sp,
-                            letterSpacing = 0.02.sp
-                        )
-                        com.example.ui.components.SectionSub(
-                            text = "Elige la fase o usa el simulador. El prompt se adapta al contexto para extraer la jugada GTO."
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        StreetModeSelector(
-                            currentStreet = selectedStreet,
-                            onStreetSelected = { viewModel.setStreet(it) }
-                        )
-                    }
-                }
-
-                item {
-                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        com.example.ui.components.Eyebrow(text = "Memoria GTO")
-                        Text(
-                            text = "Estado de la mesa",
-                            color = AppTheme.colors.textPrimary,
-                            fontFamily = androidx.compose.ui.text.font.FontFamily.Default,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 22.sp,
-                            letterSpacing = 0.02.sp
-                        )
-                        com.example.ui.components.SectionSub(
-                            text = "Define jugadores, dealer, tu posición y la unidad de apuestas. El prompt se inyecta con este contexto."
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        BettingUnitSelectorCard(
-                            currentUnit = handState.bettingUnit,
-                            jugadores = handState.jugadores,
-                            posicion = handState.posicion,
-                            dealerPosition = handState.dealerPosition,
-                            tablePositionsSummary = handState.tablePositionsSummary,
-                            onUnitSelected = { PokerGameStateManager.setBettingUnit(it) },
-                            boteDisplay = handState.displayBote,
-                            apuestaDisplay = handState.displayApuestaRival
-                        )
-                    }
-                }
-
-                item {
-                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        com.example.ui.components.Eyebrow(text = "Resultado en vivo")
-                        Text(
-                            text = "Jugada GTO recomendada",
-                            color = AppTheme.colors.textPrimary,
-                            fontFamily = androidx.compose.ui.text.font.FontFamily.Default,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 22.sp,
-                            letterSpacing = 0.02.sp
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        PokerHudOverlay(
-                            result = latestResult,
-                            isAnalyzing = isAnalyzing
-                        )
-                    }
-                }
-
-                item {
-                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        com.example.ui.components.Eyebrow(text = "Overlay flotante")
-                        Text(
-                            text = "Nube sobre la mesa",
-                            color = AppTheme.colors.textPrimary,
-                            fontFamily = androidx.compose.ui.text.font.FontFamily.Default,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 22.sp,
-                            letterSpacing = 0.02.sp
-                        )
-                        com.example.ui.components.SectionSub(
-                            text = "Permite mostrar el botón flotante y la nube de resultados sobre cualquier app de poker."
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        FloatingOverlayControlCard(
-                            canDrawOverlays = canDrawOverlays,
-                            isServiceRunning = isServiceRunning,
-                            onRequestOverlayPermission = {
-                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                                    val intent = Intent(
-                                        Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                                        Uri.parse("package:${context.packageName}")
-                                    )
-                                    overlayPermissionLauncher.launch(intent)
-                                }
-                            },
-                            onLaunchOverlay = {
-                                if (!canDrawOverlays) {
+                        // Tarjeta Principal de la Burbuja Flotante
+                        item {
+                            LiveFloatingHeroCard(
+                                canDrawOverlays = canDrawOverlays,
+                                isServiceRunning = isServiceRunning,
+                                onRequestOverlayPermission = {
                                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
                                         val intent = Intent(
                                             Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
@@ -409,171 +379,745 @@ fun PokerScreen(
                                         )
                                         overlayPermissionLauncher.launch(intent)
                                     }
-                                } else if (isServiceRunning) {
-                                    ScreenCaptureService.showFloatingOverlay()
-                                } else {
-                                    val mpManager = context.getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
-                                    mediaProjectionLauncher.launch(mpManager.createScreenCaptureIntent())
-                                }
-                            },
-                            onStopService = {
-                                val intent = Intent(context, ScreenCaptureService::class.java).apply {
-                                    action = ScreenCaptureService.ACTION_STOP
-                                }
-                                context.startService(intent)
-                            },
-                            onTriggerSimulation = {
-                                if (isServiceRunning) {
-                                    ScreenCaptureService.triggerFloatingAnalysis()
-                                } else {
-                                    val mpManager = context.getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
-                                    mediaProjectionLauncher.launch(mpManager.createScreenCaptureIntent())
-                                }
-                            }
-                        )
-                    }
-                }
+                                },
+                                onLaunchOverlay = {
+                                    if (!canDrawOverlays) {
+                                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                                            val intent = Intent(
+                                                Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                                                Uri.parse("package:${context.packageName}")
+                                            )
+                                            overlayPermissionLauncher.launch(intent)
+                                        }
+                                    } else if (isServiceRunning) {
+                                        ScreenCaptureService.showFloatingOverlay()
+                                    } else {
+                                        val mpManager = context.getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
+                                        mediaProjectionLauncher.launch(mpManager.createScreenCaptureIntent())
+                                    }
+                                },
+                                onStopService = {
+                                    val intent = Intent(context, ScreenCaptureService::class.java).apply {
+                                        action = ScreenCaptureService.ACTION_STOP
+                                    }
+                                    context.startService(intent)
+                                },
+                                onOpenInfo = { showOverlayInfoModal = true }
+                            )
+                        }
 
-                item {
-                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        com.example.ui.components.Eyebrow(text = "Motor de Inteligencia")
-                        Text(
-                            text = "Gemini AI y OCR Local",
-                            color = AppTheme.colors.textPrimary,
-                            fontFamily = androidx.compose.ui.text.font.FontFamily.Default,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 22.sp,
-                            letterSpacing = 0.02.sp
-                        )
-                        com.example.ui.components.SectionSub(
-                            text = "Configura tu API Key de Gemini para análisis neuronal de alta fidelidad, o deja que el motor OCR local con ML Kit procese las cartas sin internet."
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        ApiKeySettingsCard()
-                    }
-                }
+                        // Selector de Ronda / Fase de la Mano
+                        item {
+                            StreetModeSelector(
+                                currentStreet = selectedStreet,
+                                onStreetSelected = { viewModel.setStreet(it) },
+                                onOpenInfo = { showStreetInfoModal = true }
+                            )
+                        }
 
-                item {
-                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        com.example.ui.components.Eyebrow(text = "Pilares del prompt")
-                        Text(
-                            text = "Arquitectura espacial",
-                            color = AppTheme.colors.textPrimary,
-                            fontFamily = androidx.compose.ui.text.font.FontFamily.Default,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 22.sp,
-                            letterSpacing = 0.02.sp
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        UniversalPromptCard()
-                    }
-                }
-
-                item {
-                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        com.example.ui.components.Eyebrow(text = "Controles rápidos")
-                        Text(
-                            text = "Captura y análisis",
-                            color = AppTheme.colors.textPrimary,
-                            fontFamily = androidx.compose.ui.text.font.FontFamily.Default,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 22.sp,
-                            letterSpacing = 0.02.sp
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        ActionControlCard(
-                            isServiceRunning = isServiceRunning,
-                            isAnalyzing = isAnalyzing,
-                            onStartCapture = {
-                                val mpManager = context.getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
-                                mediaProjectionLauncher.launch(mpManager.createScreenCaptureIntent())
-                            },
-                            onStopCapture = {
-                                val intent = Intent(context, ScreenCaptureService::class.java).apply {
-                                    action = ScreenCaptureService.ACTION_STOP
-                                }
-                                context.startService(intent)
-                            },
-                            onAnalyzeNow = {
-                                if (isServiceRunning) {
-                                    viewModel.triggerScreenCapture()
-                                } else {
-                                    viewModel.analyzeCurrentPreset()
-                                }
-                            }
-                        )
-                    }
-                }
-
-                item {
-                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        com.example.ui.components.Eyebrow(text = "Simulador")
-                        Text(
-                            text = "Manos de prueba",
-                            color = AppTheme.colors.textPrimary,
-                            fontFamily = androidx.compose.ui.text.font.FontFamily.Default,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 22.sp,
-                            letterSpacing = 0.02.sp
-                        )
-                        com.example.ui.components.SectionSub(
-                            text = "Flush Draw, Gutshot, OESD, Big Slick. Sin capturar pantalla real."
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        SimulatorSection(
-                            selectedPreset = selectedPreset,
-                            onPresetSelected = { viewModel.selectPreset(it) },
-                            previewBitmap = currentPreviewBitmap ?: selectedPreset.renderBitmap()
-                        )
-                    }
-                }
-
-                if (history.isNotEmpty()) {
-                    item {
-                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                            com.example.ui.components.Eyebrow(text = "Historial")
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(
-                                    text = "Manos evaluadas",
-                                    color = AppTheme.colors.textPrimary,
-                                    fontFamily = androidx.compose.ui.text.font.FontFamily.Default,
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 22.sp,
-                                    letterSpacing = 0.02.sp
-                                )
-                                IconButton(
-                                    onClick = { viewModel.clearHistory() },
-                                    modifier = Modifier.size(28.dp)
+                        // Resultado GTO en Tiempo Real
+                        item {
+                            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Delete,
-                                        contentDescription = "Limpiar historial",
-                                        tint = AppTheme.colors.textSecondary,
-                                        modifier = Modifier.size(18.dp)
+                                    Text(
+                                        text = "JUGADA RECOMENDADA GTO",
+                                        color = AppTheme.colors.textPrimary,
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        letterSpacing = 1.sp
                                     )
+                                    if (latestResult != null) {
+                                        Surface(
+                                            shape = RoundedCornerShape(4.dp),
+                                            color = AppTheme.colors.accentGoldBg,
+                                            border = androidx.compose.foundation.BorderStroke(1.dp, AppTheme.colors.accentGold)
+                                        ) {
+                                            Text(
+                                                text = latestResult?.street?.displayName?.uppercase() ?: "EN VIVO",
+                                                color = AppTheme.colors.accentGold,
+                                                fontSize = 9.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                            )
+                                        }
+                                    }
                                 }
+                                PokerHudOverlay(
+                                    result = latestResult,
+                                    isAnalyzing = isAnalyzing
+                                )
                             }
                         }
-                    }
-                    items(history) { item ->
-                        HistoryItemCard(result = item)
+
+                        // Botón de Captura y Análisis
+                        item {
+                            ActionControlCard(
+                                isServiceRunning = isServiceRunning,
+                                isAnalyzing = isAnalyzing,
+                                onStartCapture = {
+                                    val mpManager = context.getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
+                                    mediaProjectionLauncher.launch(mpManager.createScreenCaptureIntent())
+                                },
+                                onStopCapture = {
+                                    val intent = Intent(context, ScreenCaptureService::class.java).apply {
+                                        action = ScreenCaptureService.ACTION_STOP
+                                    }
+                                    context.startService(intent)
+                                },
+                                onAnalyzeNow = {
+                                    if (isServiceRunning) {
+                                        viewModel.triggerScreenCapture()
+                                    } else {
+                                        viewModel.analyzeCurrentPreset()
+                                    }
+                                }
+                            )
+                        }
+
+                        item { Spacer(modifier = Modifier.height(16.dp)) }
                     }
                 }
 
-                item { Spacer(modifier = Modifier.height(24.dp)) }
+                1 -> {
+                    // PESTAÑA 1: MESA GTO (Posiciones, Ciegas & Simulador)
+                    LazyColumn(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(horizontal = 16.dp),
+                        verticalArrangement = Arrangement.spacedBy(14.dp)
+                    ) {
+                        item { Spacer(modifier = Modifier.height(4.dp)) }
+
+                        // Posición, Jugadores, Dealer y Unidad
+                        item {
+                            BettingUnitSelectorCard(
+                                currentUnit = handState.bettingUnit,
+                                jugadores = handState.jugadores,
+                                posicion = handState.posicion,
+                                dealerPosition = handState.dealerPosition,
+                                tablePositionsSummary = handState.tablePositionsSummary,
+                                onUnitSelected = { PokerGameStateManager.setBettingUnit(it) },
+                                boteDisplay = handState.displayBote,
+                                apuestaDisplay = handState.displayApuestaRival,
+                                onOpenInfo = { showTableInfoModal = true }
+                            )
+                        }
+
+                        // Simulador Interactivo de Manos
+                        item {
+                            SimulatorSection(
+                                selectedPreset = selectedPreset,
+                                onPresetSelected = { viewModel.selectPreset(it) },
+                                previewBitmap = currentPreviewBitmap ?: selectedPreset.renderBitmap()
+                            )
+                        }
+
+                        item { Spacer(modifier = Modifier.height(16.dp)) }
+                    }
+                }
+
+                2 -> {
+                    // PESTAÑA 2: AJUSTES & AYUDA
+                    SettingsTabContent(
+                        context = context,
+                        canDrawOverlays = canDrawOverlays,
+                        isDarkTheme = isDarkTheme,
+                        history = history,
+                        onClearHistory = { viewModel.clearHistory() },
+                        onRequestOverlayPermission = {
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                                val intent = Intent(
+                                    Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                                    Uri.parse("package:${context.packageName}")
+                                )
+                                overlayPermissionLauncher.launch(intent)
+                            }
+                        },
+                        onOpenGlossaryModal = { showGlossaryModal = true },
+                        onOpenQuickGuideModal = { showQuickGuideModal = true },
+                        onToggleTheme = { AppThemeManager.toggleTheme(context) }
+                    )
+                }
             }
         }
     }
 
-    if (showApiKeyModal) {
-        ApiKeyConfigDialog(
-            onDismiss = { showApiKeyModal = false },
-            onKeySaved = { showApiKeyModal = false }
+    // MODALES INFORMATIVOS INTERACTIVOS (Sin textos gigantes en pantalla)
+    if (showOverlayInfoModal) {
+        CasinoInfoModal(
+            title = "Burbuja Flotante",
+            icon = "♠",
+            bullets = listOf(
+                Pair("Flota sobre tu juego", "Abre tu sala de poker (GG Poker, PokerStars, etc.) y la ficha flotará discretamente sin tapar las cartas ni apuestas."),
+                Pair("Toca para ver jugada", "Pulsa la ficha para ver la recomendación GTO óptima. Vuelve a tocarla para minimizarla a un punto discreto."),
+                Pair("Arrastra al basurero para cerrar", "Mantén pulsada la burbuja y arrástrala hacia el fondo de la pantalla para cerrarla instantáneamente."),
+                Pair("Lectura en tiempo real", "Presiona Capturar para evaluar tu mano al momento con cálculo de Outs y probabilidad de victoria.")
+            ),
+            onDismiss = { showOverlayInfoModal = false }
         )
+    }
+
+    if (showStreetInfoModal) {
+        CasinoInfoModal(
+            title = "Fases de la Mano",
+            icon = "🎯",
+            bullets = listOf(
+                Pair("Preflop (Equity Inicial)", "Evalúa tus 2 cartas de mano según tu posición en la mesa, recomendando si debes Subir (Raise), Pagar (Call) o Retirarte (Fold)."),
+                Pair("Postflop (Outs & Win %)", "Lee las cartas comunitarias (Flop/Turn). Calcula cuántas cartas te salvan (Outs) y tu probabilidad matemática exacta de ganar."),
+                Pair("Acción Rápida (< 1s)", "Modo de decisión ultrarrápido para actuar de inmediato cuando el reloj de la mesa te presione.")
+            ),
+            onDismiss = { showStreetInfoModal = false }
+        )
+    }
+
+    if (showTableInfoModal) {
+        CasinoInfoModal(
+            title = "Mesa y Posiciones GTO",
+            icon = "🎲",
+            bullets = listOf(
+                Pair("Ciegas (BB) vs Dinero ($)", "Los profesionales usan Ciegas Grandes (BB) para medir el bote de forma exacta independientemente del nivel de apuesta."),
+                Pair("Botón Dealer (D / BTN)", "Es la posición más rentable del poker, ya que eres el último en actuar en cada ronda de apuestas postflop."),
+                Pair("Tu Posición (Hero)", "En primeras posiciones (UTG) debes jugar rangos de cartas muy fuertes. En el Botón (BTN) o Ciegas (SB/BB) puedes jugar más agresivo.")
+            ),
+            onDismiss = { showTableInfoModal = false }
+        )
+    }
+
+    if (showGlossaryModal) {
+        CasinoInfoModal(
+            title = "Glosario Poker GTO",
+            icon = "📖",
+            bullets = listOf(
+                Pair("GTO (Game Theory Optimal)", "Estrategia matemática inexploitable que maximiza tus ganancias a largo plazo minimizando tus errores."),
+                Pair("Outs", "Número de cartas en la baraja que mejoran tu mano para ganar el bote (ej. 9 cartas para completar un color)."),
+                Pair("Equity (% de Victoria)", "La probabilidad estadística exacta de ganar la mano al llegar al Showdown."),
+                Pair("Pot Odds", "Relación matemática entre el costo de pagar y el tamaño del bote para saber si es rentable ver la jugada.")
+            ),
+            onDismiss = { showGlossaryModal = false }
+        )
+    }
+
+    if (showQuickGuideModal) {
+        CasinoInfoModal(
+            title = "Guía Rápida de Uso",
+            icon = "⚡",
+            bullets = listOf(
+                Pair("1. Activa el Asistente", "En la pestaña 'En Vivo', pulsa 'ACTIVAR ASISTENTE FLOTANTE'."),
+                Pair("2. Abre tu Sala de Poker", "Ingresa a tu mesa habitual. Verás la ficha de casino flotando sobre la pantalla."),
+                Pair("3. Toca en tu Turno", "Toca la ficha cuando sea tu turno para recibir la acción matemática recomendada."),
+                Pair("4. Arrastra para Cerrar", "Cuando termines tu sesión, arrastra la ficha hacia el centro inferior para cerrarla.")
+            ),
+            onDismiss = { showQuickGuideModal = false }
+        )
+    }
+}
+
+/**
+ * Modal Informativo Elegante estilo Casino Royal (White, Gold & Obsidian)
+ */
+@Composable
+fun CasinoInfoModal(
+    title: String,
+    icon: String = "♠",
+    bullets: List<Pair<String, String>>,
+    onDismiss: () -> Unit
+) {
+    Dialog(onDismissRequest = onDismiss) {
+        Card(
+            shape = RoundedCornerShape(18.dp),
+            colors = CardDefaults.cardColors(containerColor = AppTheme.colors.surface),
+            border = androidx.compose.foundation.BorderStroke(AppTheme.colors.borderWidth, AppTheme.colors.border),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(
+                modifier = Modifier.padding(20.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text(
+                            text = icon,
+                            fontSize = 20.sp,
+                            color = AppTheme.colors.accentGold
+                        )
+                        Text(
+                            text = title,
+                            color = AppTheme.colors.textPrimary,
+                            fontSize = 17.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                    IconButton(
+                        onClick = onDismiss,
+                        modifier = Modifier.size(28.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Close,
+                            contentDescription = "Cerrar",
+                            tint = AppTheme.colors.textSecondary,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                }
+
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    bullets.forEach { (header, desc) ->
+                        Surface(
+                            shape = RoundedCornerShape(10.dp),
+                            color = AppTheme.colors.surfaceVariant,
+                            border = androidx.compose.foundation.BorderStroke(1.dp, AppTheme.colors.borderSubtle),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(10.dp),
+                                verticalArrangement = Arrangement.spacedBy(3.dp)
+                            ) {
+                                Text(
+                                    text = header,
+                                    color = AppTheme.colors.textPrimary,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                    text = desc,
+                                    color = AppTheme.colors.textSecondary,
+                                    fontSize = 11.sp,
+                                    lineHeight = 15.sp
+                                )
+                            }
+                        }
+                    }
+                }
+
+                Button(
+                    onClick = onDismiss,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = AppTheme.colors.accentSelected,
+                        contentColor = AppTheme.colors.accentSelectedText
+                    ),
+                    border = androidx.compose.foundation.BorderStroke(AppTheme.colors.borderWidth, AppTheme.colors.border),
+                    shape = RoundedCornerShape(10.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(44.dp)
+                ) {
+                    Text(
+                        text = "ENTENDIDO",
+                        fontWeight = FontWeight.Black,
+                        fontSize = 12.sp,
+                        letterSpacing = 0.5.sp,
+                        color = AppTheme.colors.accentSelectedText
+                    )
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Hero Card del Asistente Flotante en pestaña En Vivo
+ */
+@Composable
+fun LiveFloatingHeroCard(
+    canDrawOverlays: Boolean,
+    isServiceRunning: Boolean,
+    onRequestOverlayPermission: () -> Unit,
+    onLaunchOverlay: () -> Unit,
+    onStopService: () -> Unit,
+    onOpenInfo: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp)),
+        color = AppTheme.colors.surface,
+        border = androidx.compose.foundation.BorderStroke(AppTheme.colors.borderWidth, AppTheme.colors.border)
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(34.dp)
+                            .clip(CircleShape)
+                            .background(AppTheme.colors.textPrimary)
+                            .border(1.dp, AppTheme.colors.accentGold, CircleShape),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text("♠", color = AppTheme.colors.accentGold, fontSize = 16.sp, fontWeight = FontWeight.Black)
+                    }
+                    Column {
+                        Text(
+                            text = "Asistente Flotante",
+                            color = AppTheme.colors.textPrimary,
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = if (isServiceRunning) "Activo sobre la mesa" else "En pausa • Toca para iniciar",
+                            color = if (isServiceRunning) AppTheme.colors.accentGreen else AppTheme.colors.textSecondary,
+                            fontSize = 11.sp
+                        )
+                    }
+                }
+
+                IconButton(
+                    onClick = onOpenInfo,
+                    modifier = Modifier.size(32.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Info,
+                        contentDescription = "Información sobre la burbuja",
+                        tint = AppTheme.colors.accentGold,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+            }
+
+            if (!canDrawOverlays) {
+                Surface(
+                    shape = RoundedCornerShape(10.dp),
+                    color = Color(0xFFFEF2F2),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFEF4444)),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier.padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Permiso Requerido",
+                                color = Color(0xFFDC2626),
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                text = "Permite a la app flotar sobre tus juegos",
+                                color = Color(0xFF7F1D1D),
+                                fontSize = 10.sp
+                            )
+                        }
+                        Button(
+                            onClick = onRequestOverlayPermission,
+                            shape = RoundedCornerShape(8.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFDC2626)),
+                            contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                            modifier = Modifier.testTag("request_overlay_permission_button")
+                        ) {
+                            Text("Permitir", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+            } else {
+                if (isServiceRunning) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Button(
+                            onClick = onLaunchOverlay,
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = AppTheme.colors.accentSelected,
+                                contentColor = AppTheme.colors.accentSelectedText
+                            ),
+                            border = androidx.compose.foundation.BorderStroke(AppTheme.colors.borderWidth, AppTheme.colors.border),
+                            shape = RoundedCornerShape(10.dp),
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(46.dp)
+                                .testTag("launch_floating_button")
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Visibility,
+                                contentDescription = null,
+                                tint = AppTheme.colors.accentGold,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "VER BURBUJA",
+                                color = AppTheme.colors.accentSelectedText,
+                                fontWeight = FontWeight.Black,
+                                fontSize = 12.sp
+                            )
+                        }
+
+                        OutlinedButton(
+                            onClick = onStopService,
+                            shape = RoundedCornerShape(10.dp),
+                            border = androidx.compose.foundation.BorderStroke(1.5.dp, Color(0xFFEF4444)),
+                            modifier = Modifier
+                                .weight(0.7f)
+                                .height(46.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Stop,
+                                contentDescription = null,
+                                tint = Color(0xFFEF4444),
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = "DETENER",
+                                color = Color(0xFFEF4444),
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 11.sp
+                            )
+                        }
+                    }
+                } else {
+                    Button(
+                        onClick = onLaunchOverlay,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = AppTheme.colors.accentSelected,
+                            contentColor = AppTheme.colors.accentSelectedText
+                        ),
+                        border = androidx.compose.foundation.BorderStroke(AppTheme.colors.borderWidth, AppTheme.colors.border),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(48.dp)
+                            .testTag("launch_floating_button")
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.PlayArrow,
+                            contentDescription = null,
+                            tint = AppTheme.colors.accentGold,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "ACTIVAR ASISTENTE FLOTANTE",
+                            color = AppTheme.colors.accentSelectedText,
+                            fontWeight = FontWeight.Black,
+                            fontSize = 13.sp,
+                            letterSpacing = 0.5.sp
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Contenido de la pestaña 2: AJUSTES & AYUDA
+ */
+@Composable
+fun SettingsTabContent(
+    context: Context,
+    canDrawOverlays: Boolean,
+    isDarkTheme: Boolean,
+    history: List<PokerAnalysisResult>,
+    onClearHistory: () -> Unit,
+    onRequestOverlayPermission: () -> Unit,
+    onOpenGlossaryModal: () -> Unit,
+    onOpenQuickGuideModal: () -> Unit,
+    onToggleTheme: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    LazyColumn(
+        modifier = modifier
+            .fillMaxSize()
+            .padding(horizontal = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        item { Spacer(modifier = Modifier.height(4.dp)) }
+
+        item {
+            Text(
+                text = "AJUSTES Y AYUDA",
+                color = AppTheme.colors.textPrimary,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 1.sp
+            )
+        }
+
+        // Opción 2: Permisos de Superposición
+        item {
+            SettingRowCard(
+                icon = Icons.Default.Layers,
+                iconTint = if (canDrawOverlays) AppTheme.colors.accentGreen else Color(0xFFEF4444),
+                title = "Permiso de Superposición",
+                subtitle = if (canDrawOverlays) "Permitido • Puede flotar sobre apps de poker" else "Pendiente • Toca para conceder permiso",
+                actionText = if (canDrawOverlays) "ACTIVO" else "PERMITIR",
+                onClick = { if (!canDrawOverlays) onRequestOverlayPermission() }
+            )
+        }
+
+        // Opción 3: Glosario de Poker GTO
+        item {
+            SettingRowCard(
+                icon = Icons.Default.Casino,
+                iconTint = AppTheme.colors.accentGold,
+                title = "Glosario Poker GTO",
+                subtitle = "Outs, Probabilidades (Equity), Pot Odds y Posiciones",
+                actionText = "VER",
+                onClick = onOpenGlossaryModal
+            )
+        }
+
+        // Opción 4: Guía de la Burbuja
+        item {
+            SettingRowCard(
+                icon = Icons.Default.Info,
+                iconTint = AppTheme.colors.accentGold,
+                title = "Guía del Asistente Flotante",
+                subtitle = "Toque para ver jugada, gestos y arrastrar para cerrar",
+                actionText = "VER",
+                onClick = onOpenQuickGuideModal
+            )
+        }
+
+        // Opción 5: Tema Visual
+        item {
+            SettingRowCard(
+                icon = if (isDarkTheme) Icons.Default.LightMode else Icons.Default.DarkMode,
+                iconTint = AppTheme.colors.accentGold,
+                title = "Estilo Visual",
+                subtitle = if (isDarkTheme) "Modo Noche Obsidiana activo" else "Modo Blanco y Oro Real activo",
+                actionText = "CAMBIAR",
+                onClick = onToggleTheme
+            )
+        }
+
+        // Opción 6: Historial de Manos
+        if (history.isNotEmpty()) {
+            item {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 8.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "HISTORIAL DE MANOS (${history.size})",
+                        color = AppTheme.colors.textPrimary,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 1.sp
+                    )
+                    IconButton(
+                        onClick = onClearHistory,
+                        modifier = Modifier.size(28.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Delete,
+                            contentDescription = "Limpiar historial",
+                            tint = Color(0xFFEF4444),
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+                }
+            }
+
+            items(history) { item ->
+                HistoryItemCard(result = item)
+            }
+        }
+
+        item { Spacer(modifier = Modifier.height(16.dp)) }
+    }
+}
+
+@Composable
+fun SettingRowCard(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    iconTint: Color,
+    title: String,
+    subtitle: String,
+    actionText: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .clickable(onClick = onClick),
+        color = AppTheme.colors.surface,
+        border = androidx.compose.foundation.BorderStroke(1.dp, AppTheme.colors.borderSubtle)
+    ) {
+        Row(
+            modifier = Modifier.padding(14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                modifier = Modifier.weight(1f)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(36.dp)
+                        .clip(CircleShape)
+                        .background(AppTheme.colors.surfaceVariant),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = icon,
+                        contentDescription = null,
+                        tint = iconTint,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text(
+                        text = title,
+                        color = AppTheme.colors.textPrimary,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = subtitle,
+                        color = AppTheme.colors.textSecondary,
+                        fontSize = 10.sp,
+                        lineHeight = 14.sp
+                    )
+                }
+            }
+
+            Surface(
+                shape = RoundedCornerShape(6.dp),
+                color = AppTheme.colors.surfaceMuted,
+                border = androidx.compose.foundation.BorderStroke(1.dp, AppTheme.colors.borderSubtle)
+            ) {
+                Text(
+                    text = actionText,
+                    color = AppTheme.colors.textPrimary,
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                )
+            }
+        }
     }
 }
 
@@ -581,6 +1125,7 @@ fun PokerScreen(
 fun StreetModeSelector(
     currentStreet: Street,
     onStreetSelected: (Street) -> Unit,
+    onOpenInfo: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     Surface(
@@ -591,13 +1136,30 @@ fun StreetModeSelector(
         border = androidx.compose.foundation.BorderStroke(AppTheme.colors.borderWidth, AppTheme.colors.border)
     ) {
         Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Text(
-                text = "FASE DE LA MANO (PROMPT OPTIMIZADO GTO)",
-                color = AppTheme.colors.textPrimary,
-                fontSize = 11.sp,
-                fontWeight = FontWeight.Bold,
-                letterSpacing = 1.sp
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "FASE DE LA MANO",
+                    color = AppTheme.colors.textPrimary,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 1.sp
+                )
+                IconButton(
+                    onClick = onOpenInfo,
+                    modifier = Modifier.size(24.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Info,
+                        contentDescription = "Ayuda Fases",
+                        tint = AppTheme.colors.accentGold,
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
+            }
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -613,18 +1175,19 @@ fun StreetModeSelector(
                             .testTag("street_${street.name.lowercase()}_tab"),
                         color = if (isSelected) AppTheme.colors.accentSelected else AppTheme.colors.surfaceMuted,
                         border = androidx.compose.foundation.BorderStroke(
-                            AppTheme.colors.borderWidth,
+                            if (isSelected) AppTheme.colors.borderWidth else 1.dp,
                             if (isSelected) AppTheme.colors.border else AppTheme.colors.borderSubtle
                         )
                     ) {
                         Column(
-                            modifier = Modifier.padding(vertical = 10.dp, horizontal = 8.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally
+                            modifier = Modifier.padding(vertical = 10.dp, horizontal = 6.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(2.dp)
                         ) {
                             Text(
                                 text = street.displayName,
                                 color = if (isSelected) AppTheme.colors.accentSelectedText else AppTheme.colors.textPrimary,
-                                fontSize = 13.sp,
+                                fontSize = 12.sp,
                                 fontWeight = FontWeight.Bold
                             )
                             Text(
@@ -634,7 +1197,7 @@ fun StreetModeSelector(
                                     Street.FAST_GTO -> "< 1s Directo"
                                 },
                                 color = if (isSelected) AppTheme.colors.accentSelectedText.copy(alpha = 0.85f) else AppTheme.colors.textSecondary,
-                                fontSize = 10.sp,
+                                fontSize = 9.sp,
                                 textAlign = TextAlign.Center,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
@@ -657,6 +1220,7 @@ fun BettingUnitSelectorCard(
     onUnitSelected: (BettingUnit) -> Unit,
     boteDisplay: String,
     apuestaDisplay: String,
+    onOpenInfo: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     Surface(
@@ -675,13 +1239,29 @@ fun BettingUnitSelectorCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = "ESTADO Y MEMORIA GTO",
-                    color = AppTheme.colors.textPrimary,
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 1.sp
-                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Text(
+                        text = "ESTADO Y MEMORIA GTO",
+                        color = AppTheme.colors.textPrimary,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 1.sp
+                    )
+                    IconButton(
+                        onClick = onOpenInfo,
+                        modifier = Modifier.size(22.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Info,
+                            contentDescription = "Ayuda Mesa",
+                            tint = AppTheme.colors.accentGold,
+                            modifier = Modifier.size(15.dp)
+                        )
+                    }
+                }
                 Surface(
                     shape = RoundedCornerShape(6.dp),
                     color = AppTheme.colors.surfaceMuted,
@@ -989,7 +1569,7 @@ fun BettingUnitSelectorCard(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "Valores actuales en Nube:",
+                        text = "Valores detectados en mesa:",
                         color = AppTheme.colors.textSecondary,
                         fontSize = 10.sp
                     )
@@ -1048,7 +1628,7 @@ fun ActionControlCard(
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    text = if (isAnalyzing) "Analizando con Gemini..." else "Capturar y Evaluar con Gemini",
+                    text = if (isAnalyzing) "Analizando mesa de juego..." else "Capturar y Evaluar Mesa",
                     fontSize = 15.sp,
                     fontWeight = FontWeight.Black,
                     color = AppTheme.colors.accentSelectedText
@@ -1463,114 +2043,15 @@ private fun FloatingOverlayControlCard(
 }
 
 /**
- * Universal Prompt Card displaying the exact Spatial GTO prompt and 4 pillars architecture
+ * Poker Guide Card explaining each feature naturally and clearly to the poker player.
  */
 @Composable
-private fun UniversalPromptCard() {
+private fun PokerGuideCard() {
     Card(
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = AppTheme.colors.surface),
         border = androidx.compose.foundation.BorderStroke(AppTheme.colors.borderWidth, AppTheme.colors.border),
         modifier = Modifier.fillMaxWidth()
-    ) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Code,
-                        contentDescription = null,
-                        tint = AppTheme.colors.textPrimary,
-                        modifier = Modifier.size(18.dp)
-                    )
-                    Text(
-                        text = "Prompt Espacial GTO Vision",
-                        color = AppTheme.colors.textPrimary,
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-
-                Surface(
-                    shape = RoundedCornerShape(6.dp),
-                    color = AppTheme.colors.surfaceMuted,
-                    border = androidx.compose.foundation.BorderStroke(1.dp, AppTheme.colors.borderSubtle)
-                ) {
-                    Text(
-                        text = "⚡ Timeout 4s • Zero Crashes",
-                        color = AppTheme.colors.textPrimary,
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                    )
-                }
-            }
-
-            Surface(
-                shape = RoundedCornerShape(8.dp),
-                color = AppTheme.colors.surfaceMuted,
-                border = androidx.compose.foundation.BorderStroke(1.dp, AppTheme.colors.borderSubtle)
-            ) {
-                val spatialPrompt = "Contexto GTO: Fase[\${state.fase}], JugadoresActivos[\${state.jugadores}], MiPosicion[\${state.posicion}], Bote[\${state.bote}]. Eres un escáner de póker estricto. REGLA 1 (CARTAS PROPIAS): Tus 2 cartas de la mano están SIEMPRE situadas en el cuadro de la PARTE INFERIOR. Selecciónalas como tus cartas propias. REGLA 2 (CARTAS COMUNITARIAS): Las cartas comunitarias (Flop, Turn, River) están alineadas exclusivamente en el CENTRO de la mesa. Responde ÚNICAMENTE con este formato Regex-ready: Cartas:[ValorPalo] | Mesa:[ValorPalo] | Outs:[Numero] | Win:[X]% | GTO:[Acción y Tamaño]. Cero explicaciones."
-                Text(
-                    text = spatialPrompt,
-                    color = AppTheme.colors.textPrimary,
-                    fontSize = 11.sp,
-                    fontFamily = FontFamily.Monospace,
-                    modifier = Modifier.padding(10.dp),
-                    lineHeight = 15.sp
-                )
-            }
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                val tags = listOf("1. Captura Limpia", "2. Memoria GTO", "3. Timeout 4s", "4. Prompt Espacial")
-                tags.forEach { tag ->
-                    Surface(
-                        shape = RoundedCornerShape(4.dp),
-                        color = AppTheme.colors.surfaceMuted,
-                        border = androidx.compose.foundation.BorderStroke(1.dp, AppTheme.colors.borderSubtle)
-                    ) {
-                        Text(
-                            text = tag,
-                            color = AppTheme.colors.textPrimary,
-                            fontSize = 9.sp,
-                            fontWeight = FontWeight.Medium,
-                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                        )
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-fun ApiKeySettingsCard(
-    modifier: Modifier = Modifier
-) {
-    val context = LocalContext.current
-    var currentKey by remember { mutableStateOf(ApiKeyManager.getApiKey(context)) }
-    var inputKey by remember { mutableStateOf("") }
-    var saveSuccess by remember { mutableStateOf(false) }
-    val isConfigured = ApiKeyManager.isConfigured(context)
-
-    Card(
-        modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(14.dp),
-        colors = CardDefaults.cardColors(containerColor = AppTheme.colors.surface),
-        border = androidx.compose.foundation.BorderStroke(AppTheme.colors.borderWidth, AppTheme.colors.border)
     ) {
         Column(
             modifier = Modifier.padding(16.dp),
@@ -1586,30 +2067,27 @@ fun ApiKeySettingsCard(
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Icon(
-                        imageVector = Icons.Default.Key,
+                        imageVector = Icons.Default.Info,
                         contentDescription = null,
-                        tint = if (isConfigured) Color(0xFF059669) else Color(0xFFD97706),
+                        tint = AppTheme.colors.accentGreen,
                         modifier = Modifier.size(20.dp)
                     )
                     Text(
-                        text = if (isConfigured) "Gemini Serie 3 Flash (3.8 / 3.7 / 3.6) Activo" else "OCR Local ML Kit Activo",
+                        text = "Guía de Opciones",
+                        color = AppTheme.colors.textPrimary,
                         fontSize = 15.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = AppTheme.colors.textPrimary
+                        fontWeight = FontWeight.Bold
                     )
                 }
 
                 Surface(
                     shape = RoundedCornerShape(999.dp),
-                    color = if (isConfigured) Color(0xFFECFDF5) else Color(0xFFFEF3C7),
-                    border = androidx.compose.foundation.BorderStroke(
-                        1.dp,
-                        if (isConfigured) Color(0xFFA7F3D0) else Color(0xFFFDE68A)
-                    )
+                    color = AppTheme.colors.accentGreenBg,
+                    border = androidx.compose.foundation.BorderStroke(1.dp, AppTheme.colors.accentGreen.copy(alpha = 0.4f))
                 ) {
                     Text(
-                        text = if (isConfigured) "Nube Online" else "Offline / ML Kit",
-                        color = if (isConfigured) Color(0xFF047857) else Color(0xFFB45309),
+                        text = "♠ En Vivo",
+                        color = AppTheme.colors.accentGreen,
                         fontSize = 10.sp,
                         fontWeight = FontWeight.Bold,
                         modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
@@ -1617,349 +2095,42 @@ fun ApiKeySettingsCard(
                 }
             }
 
-            Text(
-                text = if (isConfigured) {
-                    "Tu clave API está configurada (${ApiKeyManager.getMaskedKey(context)}). La visión multimodal de Gemini Serie 3 Flash (3.8 / 3.7 / 3.6) analizará las capturas con visión multirresolución de alta precisión."
-                } else {
-                    "Sin API Key configurada. El motor OCR Local integrado (ML Kit) lee las cartas en el dispositivo sin internet. Para activar Gemini AI (3.8 / 3.7 / 3.6), ingresa tu clave gratuita de Google AI Studio."
-                },
-                fontSize = 12.sp,
-                color = AppTheme.colors.textSecondary,
-                lineHeight = 16.sp
+            val guideItems = listOf(
+                Pair("1. Burbuja Flotante", "Flota como una ficha de casino sobre cualquier app de póker. Toca la ficha para ver la recomendación, vuelve a tocarla para minimizarla, o arrástrala hacia abajo para cerrarla."),
+                Pair("2. Lectura Automática", "Detecta tus 2 cartas de la mano y las cartas comunitarias de la mesa sin interrumpir tu juego."),
+                Pair("3. Posición en la Mesa", "Ajusta con un toque si estás en el Botón (BTN), Ciegas (SB/BB) o primeras posiciones (UTG) para afinar la recomendación matemática."),
+                Pair("4. Unidad de Apuesta (BB vs $)", "Alterna entre Ciegas Grandes (BB) para juego profesional o Fichas en dólares ($)."),
+                Pair("5. Decisión GTO y Probabilidades", "Te aconseja si debes Pasar (Check), Apostar (Bet), Subir (Raise) o Retirarte (Fold), junto con tus Outs y probabilidad de ganar (Win Equity).")
             )
 
-            OutlinedTextField(
-                value = inputKey,
-                onValueChange = {
-                    inputKey = it
-                    saveSuccess = false
-                },
-                placeholder = {
-                    Text(
-                        text = if (isConfigured) "Reemplazar API Key..." else "Pega tu Gemini API Key (AIzaSy...)",
-                        fontSize = 12.sp,
-                        color = AppTheme.colors.textMuted
-                    )
-                },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
-                textStyle = androidx.compose.ui.text.TextStyle(
-                    fontSize = 12.sp,
-                    fontFamily = FontFamily.Monospace,
-                    color = AppTheme.colors.textPrimary
-                ),
-                shape = RoundedCornerShape(10.dp),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = AppTheme.colors.border,
-                    unfocusedBorderColor = AppTheme.colors.borderSubtle,
-                    focusedContainerColor = AppTheme.colors.surfaceMuted,
-                    unfocusedContainerColor = AppTheme.colors.surfaceMuted
-                )
-            )
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                if (isConfigured) {
-                    OutlinedButton(
-                        onClick = {
-                            ApiKeyManager.clearApiKey(context)
-                            currentKey = ""
-                            inputKey = ""
-                            saveSuccess = false
-                        },
-                        shape = RoundedCornerShape(8.dp),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFEF4444)),
-                        colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFEF4444))
-                    ) {
-                        Icon(Icons.Default.Delete, contentDescription = null, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("Quitar", fontSize = 12.sp)
-                    }
-                } else {
-                    Spacer(modifier = Modifier.width(1.dp))
-                }
-
-                Button(
-                    onClick = {
-                        if (inputKey.isNotBlank()) {
-                            ApiKeyManager.saveApiKey(context, inputKey)
-                            currentKey = inputKey
-                            inputKey = ""
-                            saveSuccess = true
-                        }
-                    },
-                    enabled = inputKey.isNotBlank(),
-                    shape = RoundedCornerShape(8.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = AppTheme.colors.accentSelected,
-                        contentColor = AppTheme.colors.accentSelectedText
-                    ),
-                    border = androidx.compose.foundation.BorderStroke(AppTheme.colors.borderWidth, AppTheme.colors.border)
-                ) {
-                    Icon(Icons.Default.Save, contentDescription = null, tint = AppTheme.colors.accentSelectedText, modifier = Modifier.size(16.dp))
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text("Guardar Clave", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = AppTheme.colors.accentSelectedText)
-                }
-            }
-
-            if (saveSuccess) {
+            guideItems.forEach { (title, desc) ->
                 Surface(
-                    shape = RoundedCornerShape(6.dp),
-                    color = Color(0xFFECFDF5),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFA7F3D0)),
+                    shape = RoundedCornerShape(10.dp),
+                    color = AppTheme.colors.surfaceVariant,
+                    border = androidx.compose.foundation.BorderStroke(1.dp, AppTheme.colors.borderLight),
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text(
-                        text = "✓ ¡API Key guardada con éxito! Gemini Flash activado.",
-                        color = Color(0xFF047857),
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Medium,
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-fun TopApiKeyStatusBanner(
-    isConfigured: Boolean,
-    maskedKey: String,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    Surface(
-        shape = RoundedCornerShape(12.dp),
-        color = AppTheme.colors.surface,
-        border = androidx.compose.foundation.BorderStroke(
-            AppTheme.colors.borderWidth,
-            if (isConfigured) AppTheme.colors.border else Color(0xFFD97706)
-        ),
-        modifier = modifier
-            .fillMaxWidth()
-            .clickable { onClick() }
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-                modifier = Modifier.weight(1f)
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Key,
-                    contentDescription = null,
-                    tint = if (isConfigured) Color(0xFF059669) else Color(0xFFD97706),
-                    modifier = Modifier.size(20.dp)
-                )
-                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Text(
-                        text = if (isConfigured) "Gemini Serie 3 Flash (3.8 / 3.7 / 3.6) Activo" else "Modo OCR Local (Sin API Key)",
-                        color = AppTheme.colors.textPrimary,
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Text(
-                        text = if (isConfigured) "Clave: $maskedKey • Toca para gestionar" else "Escaneando en dispositivo. Toca para ingresar API Key",
-                        color = AppTheme.colors.textSecondary,
-                        fontSize = 10.sp
-                    )
-                }
-            }
-
-            Surface(
-                shape = RoundedCornerShape(6.dp),
-                color = if (isConfigured) AppTheme.colors.textPrimary else Color(0xFFD97706)
-            ) {
-                Text(
-                    text = if (isConfigured) "GESTIONAR" else "CONFIGURAR",
-                    color = if (isConfigured) AppTheme.colors.surface else Color.White,
-                    fontSize = 10.sp,
-                    fontWeight = FontWeight.Black,
-                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                )
-            }
-        }
-    }
-}
-
-@Composable
-fun ApiKeyConfigDialog(
-    onDismiss: () -> Unit,
-    onKeySaved: () -> Unit
-) {
-    val context = LocalContext.current
-    val clipboardManager = LocalClipboardManager.current
-    var inputKey by remember { mutableStateOf(ApiKeyManager.getApiKey(context) ?: "") }
-    var saveSuccess by remember { mutableStateOf(false) }
-    val isConfigured = ApiKeyManager.isConfigured(context)
-
-    Dialog(onDismissRequest = onDismiss) {
-        Card(
-            shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(containerColor = AppTheme.colors.surface),
-            border = androidx.compose.foundation.BorderStroke(AppTheme.colors.borderWidth, AppTheme.colors.border),
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Column(
-                modifier = Modifier.padding(18.dp),
-                verticalArrangement = Arrangement.spacedBy(14.dp)
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    Column(
+                        modifier = Modifier.padding(10.dp),
+                        verticalArrangement = Arrangement.spacedBy(3.dp)
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.Key,
-                            contentDescription = null,
-                            tint = AppTheme.colors.accent,
-                            modifier = Modifier.size(22.dp)
+                        Text(
+                            text = title,
+                            color = AppTheme.colors.textPrimary,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.ExtraBold
                         )
                         Text(
-                            text = "Gemini API Key",
-                            color = AppTheme.colors.textPrimary,
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.Bold
+                            text = desc,
+                            color = AppTheme.colors.textSecondary,
+                            fontSize = 11.sp,
+                            lineHeight = 15.sp
                         )
-                    }
-                    IconButton(
-                        onClick = onDismiss,
-                        modifier = Modifier.size(24.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Close,
-                            contentDescription = "Cerrar",
-                            tint = AppTheme.colors.textSecondary,
-                            modifier = Modifier.size(18.dp)
-                        )
-                    }
-                }
-
-                Text(
-                    text = "Para activar la visión multimodal de Gemini Serie 3 Flash (3.8 / 3.7 / 3.6), ingresa tu clave gratuita de Google AI Studio. Si no tienes una, la app usará automáticamente el motor OCR Local de ML Kit.",
-                    color = AppTheme.colors.textSecondary,
-                    fontSize = 12.sp,
-                    lineHeight = 16.sp
-                )
-
-                OutlinedTextField(
-                    value = inputKey,
-                    onValueChange = {
-                        inputKey = it
-                        saveSuccess = false
-                    },
-                    placeholder = {
-                        Text("AIzaSy...", color = AppTheme.colors.textMuted, fontSize = 12.sp)
-                    },
-                    trailingIcon = {
-                        TextButton(
-                            onClick = {
-                                val clip = clipboardManager.getText()?.text
-                                if (!clip.isNullOrBlank()) {
-                                    inputKey = clip.trim()
-                                }
-                            }
-                        ) {
-                            Text("Pegar", color = AppTheme.colors.accent, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                        }
-                    },
-                    singleLine = true,
-                    textStyle = androidx.compose.ui.text.TextStyle(
-                        color = AppTheme.colors.textPrimary,
-                        fontSize = 12.sp,
-                        fontFamily = FontFamily.Monospace
-                    ),
-                    shape = RoundedCornerShape(8.dp),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = AppTheme.colors.border,
-                        unfocusedBorderColor = AppTheme.colors.borderSubtle,
-                        focusedContainerColor = AppTheme.colors.surfaceMuted,
-                        unfocusedContainerColor = AppTheme.colors.surfaceMuted
-                    ),
-                    modifier = Modifier.fillMaxWidth()
-                )
-
-                TextButton(
-                    onClick = {
-                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://aistudio.google.com/app/apikey"))
-                        context.startActivity(intent)
-                    },
-                    contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.OpenInNew,
-                        contentDescription = null,
-                        tint = AppTheme.colors.accent,
-                        modifier = Modifier.size(14.dp)
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(
-                        text = "Obtener API Key Gratis en Google AI Studio",
-                        color = AppTheme.colors.accent,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                }
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    if (isConfigured) {
-                        OutlinedButton(
-                            onClick = {
-                                ApiKeyManager.clearApiKey(context)
-                                inputKey = ""
-                                saveSuccess = false
-                            },
-                            shape = RoundedCornerShape(8.dp),
-                            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFEF4444)),
-                            colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFEF4444))
-                        ) {
-                            Icon(Icons.Default.Delete, contentDescription = null, modifier = Modifier.size(14.dp))
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text("Borrar Clave", fontSize = 11.sp)
-                        }
-                    } else {
-                        Spacer(modifier = Modifier.width(1.dp))
-                    }
-
-                    Button(
-                        onClick = {
-                            if (inputKey.isNotBlank()) {
-                                ApiKeyManager.saveApiKey(context, inputKey)
-                                saveSuccess = true
-                                onKeySaved()
-                            }
-                        },
-                        enabled = inputKey.isNotBlank(),
-                        shape = RoundedCornerShape(8.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = AppTheme.colors.accentSelected,
-                            contentColor = AppTheme.colors.accentSelectedText
-                        ),
-                        border = androidx.compose.foundation.BorderStroke(AppTheme.colors.borderWidth, AppTheme.colors.border)
-                    ) {
-                        Icon(Icons.Default.Save, contentDescription = null, tint = AppTheme.colors.accentSelectedText, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text("Guardar Clave", color = AppTheme.colors.accentSelectedText, fontWeight = FontWeight.Bold, fontSize = 12.sp)
                     }
                 }
             }
         }
     }
 }
+
 

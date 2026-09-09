@@ -8,13 +8,14 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.unit.dp
 
 @Composable
 fun BackgroundGeometry(modifier: Modifier = Modifier) {
@@ -35,6 +36,19 @@ fun BackgroundGeometry(modifier: Modifier = Modifier) {
         PulseConfig(0.96f, 0.0f, 0.0f, 16000L, 3000),
         PulseConfig(0.15f, 0.0f, 0.0f, 7000L, 2000),
     )
+
+    val animatedProgresses = configs.mapIndexed { index, cfg ->
+        transition.animateFloat(
+            initialValue = 0f,
+            targetValue = 1f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(durationMillis = cfg.duration.toInt(), easing = LinearEasing),
+                repeatMode = RepeatMode.Restart,
+                initialStartOffset = StartOffset(cfg.delay)
+            ),
+            label = "p$index"
+        )
+    }
 
     Canvas(modifier = modifier.fillMaxSize()) {
         val gridColor = Color(0xFFE5E5E5).copy(alpha = 0.05f)
@@ -58,16 +72,7 @@ fun BackgroundGeometry(modifier: Modifier = Modifier) {
         }
 
         configs.forEachIndexed { index, cfg ->
-            val progress by transition.animateFloat(
-                initialValue = 0f,
-                targetValue = 1f,
-                animationSpec = infiniteRepeatable(
-                    animation = tween(durationMillis = cfg.duration.toInt(), easing = LinearEasing),
-                    repeatMode = RepeatMode.Restart,
-                    initialStartOffset = StartOffset(cfg.delay)
-                ),
-                label = "p$index"
-            )
+            val progress = animatedProgresses[index].value
 
             val x = size.width * cfg.xRel
             val dashOn = 150f

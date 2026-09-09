@@ -1,4 +1,4 @@
-package com.example.ui
+package com.example.ui.components
 
 import com.example.ui.theme.BgWhite
 import com.example.ui.theme.BgSoft
@@ -6,7 +6,7 @@ import com.example.ui.theme.Ink
 import com.example.ui.theme.Ink2
 import com.example.ui.theme.Ink3
 import com.example.ui.theme.Line
-import com.example.ui.theme.Line2.components
+import com.example.ui.theme.Line2
 
 import android.graphics.Bitmap
 import android.graphics.Canvas
@@ -118,9 +118,10 @@ fun PokerTableSimulator(
             .fillMaxWidth()
             .testTag("poker_table_simulator_card"),
         shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFF0D1813)),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFFFFFFFF)),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
         border = CardDefaults.outlinedCardBorder().copy(
-            brush = androidx.compose.ui.graphics.SolidLine2
+            brush = androidx.compose.ui.graphics.SolidColor(Color(0xFFCBD8CD))
         )
     ) {
         Column(
@@ -141,27 +142,28 @@ fun PokerTableSimulator(
                     Icon(
                         imageVector = Icons.Default.Casino,
                         contentDescription = null,
-                        tint = Color(0xFFFBBF24),
+                        tint = Color(0xFFC59B27),
                         modifier = Modifier.size(20.dp)
                     )
                     Text(
-                        text = "Simulador de Mesa para Pruebas",
+                        text = "Simulador de Mesa de Póker",
                         style = MaterialTheme.typography.titleSmall,
                         fontWeight = FontWeight.Bold,
-                        color = BgWhite
+                        color = Ink
                     )
                 }
 
                 Surface(
-                    color = Color(0xFF10B981).copy(alpha = 0.2f),
-                    shape = RoundedCornerShape(8.dp)
+                    color = Color(0xFFE8F5EC),
+                    shape = RoundedCornerShape(8.dp),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF0A6E3D).copy(alpha = 0.5f))
                 ) {
                     Text(
                         text = "TEST BENCH",
                         modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
                         style = MaterialTheme.typography.labelSmall,
                         fontWeight = FontWeight.Bold,
-                        color = Color(0xFF34D399)
+                        color = Color(0xFF0A6E3D)
                     )
                 }
             }
@@ -173,8 +175,12 @@ fun PokerTableSimulator(
                 PRESET_HANDS.forEach { preset ->
                     val isSelected = preset.title == selectedPreset.title
                     Surface(
-                        color = if (isSelected) Color(0xFF10B981) else Color(0xFF172B22),
+                        color = if (isSelected) Color(0xFF0A6E3D) else Color(0xFFF1F6F1),
                         shape = RoundedCornerShape(8.dp),
+                        border = androidx.compose.foundation.BorderStroke(
+                            1.dp,
+                            if (isSelected) Color(0xFFC59B27) else Color(0xFFCBD8CD)
+                        ),
                         modifier = Modifier
                             .clickable { onPresetSelected(preset) }
                             .testTag("preset_${preset.street.name.lowercase()}")
@@ -184,7 +190,7 @@ fun PokerTableSimulator(
                             modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
                             style = MaterialTheme.typography.labelMedium,
                             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                            color = if (isSelected) BgWhite else Ink
+                            color = if (isSelected) Color.White else Ink
                         )
                     }
                 }
@@ -193,11 +199,19 @@ fun PokerTableSimulator(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(180.dp)
-                    .clip(RoundedCornerShape(90.dp))
-                    .background(BgSoft)
-                    .border(6.dp, Color(0xFF4A3216), RoundedCornerShape(90.dp))
-                    .border(2.dp, Color(0xFF1F4A37), RoundedCornerShape(90.dp))
+                    .height(185.dp)
+                    .clip(RoundedCornerShape(92.dp))
+                    .background(
+                        androidx.compose.ui.graphics.Brush.radialGradient(
+                            colors = listOf(
+                                Color(0xFF0F6840), // Centro fieltro verde esmeralda brillante
+                                Color(0xFF0A4F30), // Verde fieltro medio
+                                Color(0xFF063B23)  // Verde oscuro profundo
+                            )
+                        )
+                    )
+                    .border(5.dp, Color(0xFF382215), RoundedCornerShape(92.dp))
+                    .border(1.5.dp, Color(0xFFD4AF37), RoundedCornerShape(92.dp))
                     .padding(12.dp),
                 contentAlignment = Alignment.Center
             ) {
@@ -210,27 +224,29 @@ fun PokerTableSimulator(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Surface(
-                            color = Color(0xFF000000).copy(alpha = 0.4f),
-                            shape = RoundedCornerShape(6.dp)
+                            color = Color(0xFF1E1103).copy(alpha = 0.8f),
+                            shape = RoundedCornerShape(6.dp),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFD4AF37))
                         ) {
                             Text(
                                 text = "BOTE: ${selectedPreset.potSize}",
                                 modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
                                 style = MaterialTheme.typography.labelSmall,
                                 fontWeight = FontWeight.Bold,
-                                color = Color(0xFFFBBF24)
+                                color = Color(0xFFFFD700)
                             )
                         }
                         Surface(
-                            color = Color(0xFF000000).copy(alpha = 0.4f),
-                            shape = RoundedCornerShape(6.dp)
+                            color = Color(0xFF03162E).copy(alpha = 0.8f),
+                            shape = RoundedCornerShape(6.dp),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF60A5FA))
                         ) {
                             Text(
                                 text = "POS: ${selectedPreset.position}",
                                 modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
                                 style = MaterialTheme.typography.labelSmall,
                                 fontWeight = FontWeight.Bold,
-                                color = Color(0xFF60A5FA)
+                                color = Color(0xFF93C5FD)
                             )
                         }
                     }
@@ -250,15 +266,16 @@ fun PokerTableSimulator(
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         Surface(
-                            color = Color(0xFF10B981).copy(alpha = 0.2f),
-                            shape = CircleShape
+                            color = Color(0xFF0A6E3D).copy(alpha = 0.4f),
+                            shape = CircleShape,
+                            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFD4AF37))
                         ) {
                             Text(
                                 text = "TÚ",
-                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp),
                                 style = MaterialTheme.typography.labelSmall,
-                                fontWeight = FontWeight.Bold,
-                                color = Color(0xFF34D399)
+                                fontWeight = FontWeight.Black,
+                                color = Color(0xFFFFD700)
                             )
                         }
                         CardHandRow(
@@ -278,7 +295,7 @@ fun PokerTableSimulator(
                 modifier = Modifier
                     .fillMaxWidth()
                     .testTag("analyze_simulator_preset_button"),
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF10B981)),
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0A6E3D)),
                 shape = RoundedCornerShape(10.dp)
             ) {
                 Icon(
@@ -288,7 +305,7 @@ fun PokerTableSimulator(
                 )
                 Spacer(modifier = Modifier.width(6.dp))
                 Text(
-                    text = "Analizar Mano del Simulador con Gemini",
+                    text = "Analizar Mano con Asistente GTO",
                     fontWeight = FontWeight.Bold,
                     color = Color(0xFF06140E)
                 )
