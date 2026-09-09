@@ -37,8 +37,8 @@ class GeminiPokerRepository {
 
     companion object {
         private const val TAG = "GeminiPokerRepo"
-        // 10000ms: tiempo óptimo para upload en alta resolución 1280p y respuesta visual instantánea
-        private const val TIMEOUT_MS = 10000L
+        // 12000ms: tiempo óptimo para upload en alta resolución 1280p y respuesta visual instantánea
+        private const val TIMEOUT_MS = 12000L
         private const val MAX_IMAGE_DIMENSION = 1280
         private const val JPEG_COMPRESSION_QUALITY = 90
         private const val ENDPOINT_BASE = "https://generativelanguage.googleapis.com/v1beta/models"
@@ -46,13 +46,15 @@ class GeminiPokerRepository {
 
     /**
      * Cascada oficial de modelos Google Gemini multimodal vision.
-     * Prioriza gemini-2.0-flash (última generación GA de Google AI Studio) para máxima precisión espacial.
+     * Prioriza Gemini 2.5 Flash (la última generación de Google AI Studio con razonamiento espacial)
+     * y enlaza fluidamente con 2.5 Flash-Lite, 2.0 Flash y 1.5 Flash.
      */
     private val candidateModels = listOf(
+        "gemini-2.5-flash",
+        "gemini-2.5-flash-lite",
         "gemini-2.0-flash",
         "gemini-2.0-flash-lite",
-        "gemini-1.5-flash",
-        "gemini-1.5-pro"
+        "gemini-1.5-flash"
     )
 
     /**
@@ -195,7 +197,7 @@ class GeminiPokerRepository {
                             rawText = responseText,
                             latencyMs = latency,
                             isSimulation = false,
-                            statusMessage = "IA Gemini 2.0 Flash: ${parsedState.cartasPropias.joinToString(" "){it.displayString}} | Mesa: ${parsedState.cartasComunitarias.joinToString(" "){it.displayString}} · ${latency}ms"
+                            statusMessage = "IA ${callResult.modelUsed ?: "Gemini"}: ${parsedState.cartasPropias.joinToString(" "){it.displayString}} | Mesa: ${parsedState.cartasComunitarias.joinToString(" "){it.displayString}} · ${latency}ms"
                         )
                         return@withContext Result.success(parsedState)
                     }
