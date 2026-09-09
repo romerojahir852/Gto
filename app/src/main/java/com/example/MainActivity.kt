@@ -18,6 +18,7 @@ import com.example.service.ScreenCaptureService
 import com.example.ui.PokerScreen
 import com.example.ui.PokerViewModel
 import com.example.ui.theme.MyApplicationTheme
+import com.example.ui.theme.AppThemeManager
 
 class MainActivity : ComponentActivity() {
 
@@ -46,6 +47,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        AppThemeManager.init(this)
         enableEdgeToEdge()
 
         setContent {

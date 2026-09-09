@@ -1,12 +1,4 @@
-package com.example.ui
-
-import com.example.ui.theme.BgWhite
-import com.example.ui.theme.BgSoft
-import com.example.ui.theme.Ink
-import com.example.ui.theme.Ink2
-import com.example.ui.theme.Ink3
-import com.example.ui.theme.Line
-import com.example.ui.theme.Line2.components
+package com.example.ui.components
 
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
@@ -46,6 +38,7 @@ import com.example.data.CardSuit
 import com.example.data.GtoAction
 import com.example.data.PokerAnalysisResult
 import com.example.data.Street
+import com.example.ui.theme.AppTheme
 
 @Composable
 fun PokerHudOverlay(
@@ -53,14 +46,16 @@ fun PokerHudOverlay(
     isAnalyzing: Boolean,
     modifier: Modifier = Modifier
 ) {
+    val colors = AppTheme.colors
+
     Surface(
         modifier = modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(16.dp))
-            .border(1.5.dp, Color(0xFF1E3A2B), RoundedCornerShape(16.dp))
+            .border(1.5.dp, colors.border, RoundedCornerShape(16.dp))
             .testTag("poker_hud_overlay"),
-        color = BgSoft,
-        shadowElevation = 8.dp
+        color = colors.surface,
+        shadowElevation = if (colors.isDark) 0.dp else 4.dp
     ) {
         Column(
             modifier = Modifier.padding(16.dp),
@@ -80,11 +75,11 @@ fun PokerHudOverlay(
                         modifier = Modifier
                             .size(10.dp)
                             .clip(CircleShape)
-                            .background(if (isAnalyzing) Color(0xFFFFD700) else Color(0xFF00E676))
+                            .background(if (isAnalyzing) colors.accentGold else colors.accentGreen)
                     )
                     Text(
-                        text = if (isAnalyzing) "Analizando con Gemini..." else "Análisis GTO en Tiempo Real",
-                        color = Color.White,
+                        text = if (isAnalyzing) "Analizando con Gemini 3.8..." else "Análisis GTO en Tiempo Real",
+                        color = colors.textPrimary,
                         fontSize = 15.sp,
                         fontWeight = FontWeight.Bold
                     )
@@ -95,7 +90,8 @@ fun PokerHudOverlay(
                     Row(
                         modifier = Modifier
                             .clip(RoundedCornerShape(12.dp))
-                            .background(if (isSubTwoSeconds) Color(0xFF10B981).copy(alpha = 0.2f) else Color(0xFFF59E0B).copy(alpha = 0.2f))
+                            .background(if (isSubTwoSeconds) colors.accentGreenBg else colors.accentGoldBg)
+                            .border(1.dp, if (isSubTwoSeconds) colors.accentGreen else colors.accentGold, RoundedCornerShape(12.dp))
                             .padding(horizontal = 8.dp, vertical = 4.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(4.dp)
@@ -103,12 +99,12 @@ fun PokerHudOverlay(
                         Icon(
                             imageVector = Icons.Default.Speed,
                             contentDescription = null,
-                            tint = if (isSubTwoSeconds) Color(0xFF00E676) else Color(0xFFFFB74D),
+                            tint = if (isSubTwoSeconds) colors.accentGreen else colors.accentGold,
                             modifier = Modifier.size(14.dp)
                         )
                         Text(
                             text = "${result.latencyMs} ms",
-                            color = if (isSubTwoSeconds) Color(0xFF00E676) else Color(0xFFFFB74D),
+                            color = if (isSubTwoSeconds) colors.accentGreen else colors.accentGold,
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Bold
                         )
@@ -125,13 +121,13 @@ fun PokerHudOverlay(
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     CircularProgressIndicator(
-                        color = Color(0xFF00E676),
+                        color = colors.accentGreen,
                         strokeWidth = 3.dp,
                         modifier = Modifier.size(36.dp)
                     )
                     Text(
                         text = "Evaluando probabilidades y outs matemáticos...",
-                        color = Ink3,
+                        color = colors.textMuted,
                         fontSize = 13.sp
                     )
                 }
@@ -149,9 +145,9 @@ fun PokerHudOverlay(
                     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         Text(
                             text = "Tus Cartas (Hero)",
-                            color = Ink3,
+                            color = colors.textSecondary,
                             fontSize = 12.sp,
-                            fontWeight = FontWeight.Medium
+                            fontWeight = FontWeight.Bold
                         )
                         if (result.holeCards.isNotEmpty()) {
                             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -162,7 +158,7 @@ fun PokerHudOverlay(
                         } else {
                             Text(
                                 text = "Sin cartas detectadas",
-                                color = Ink3,
+                                color = colors.textMuted,
                                 fontSize = 12.sp
                             )
                         }
@@ -175,9 +171,9 @@ fun PokerHudOverlay(
                     ) {
                         Text(
                             text = "Mesa (Comunitarias)",
-                            color = Ink3,
+                            color = colors.textSecondary,
                             fontSize = 12.sp,
-                            fontWeight = FontWeight.Medium
+                            fontWeight = FontWeight.Bold
                         )
                         if (result.communityCards.isNotEmpty()) {
                             Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -188,7 +184,7 @@ fun PokerHudOverlay(
                         } else {
                             Text(
                                 text = "Preflop (Mesa vacía)",
-                                color = Ink3,
+                                color = colors.textMuted,
                                 fontSize = 12.sp
                             )
                         }
@@ -208,15 +204,15 @@ fun PokerHudOverlay(
                         ) {
                             Text(
                                 text = if (result.street == Street.PREFLOP) "Preflop Equity" else "Win % (Probabilidad de Ganar)",
-                                color = Ink,
+                                color = colors.textPrimary,
                                 fontSize = 13.sp,
-                                fontWeight = FontWeight.SemiBold
+                                fontWeight = FontWeight.Bold
                             )
                             Text(
                                 text = result.winEquity,
-                                color = Color(0xFFFFD700),
+                                color = colors.accentGold,
                                 fontSize = 14.sp,
-                                fontWeight = FontWeight.Bold
+                                fontWeight = FontWeight.Black
                             )
                         }
                         LinearProgressIndicator(
@@ -224,9 +220,10 @@ fun PokerHudOverlay(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .height(8.dp)
-                                .clip(RoundedCornerShape(4.dp)),
-                            color = if (progressFloat > 0.5f) Color(0xFF00E676) else Color(0xFF3B82F6),
-                            trackColor = BgSoft,
+                                .clip(RoundedCornerShape(4.dp))
+                                .border(1.dp, colors.border, RoundedCornerShape(4.dp)),
+                            color = if (progressFloat > 0.5f) colors.accentGreen else colors.accentBlue,
+                            trackColor = colors.surfaceVariant,
                             strokeCap = StrokeCap.Round
                         )
                     }
@@ -241,9 +238,9 @@ fun PokerHudOverlay(
                     if (result.totalOuts != null || !result.outsDetail.isNullOrBlank()) {
                         Surface(
                             modifier = Modifier.weight(1f),
-                            color = BgSoft,
+                            color = colors.surfaceVariant,
                             shape = RoundedCornerShape(10.dp),
-                            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF1E4632))
+                            border = androidx.compose.foundation.BorderStroke(1.5.dp, colors.border)
                         ) {
                             Column(
                                 modifier = Modifier.padding(10.dp),
@@ -251,21 +248,17 @@ fun PokerHudOverlay(
                             ) {
                                 Text(
                                     text = "OUTS MATEMÁTICOS",
-                                    color = Ink3,
+                                    color = colors.textMuted,
                                     fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    letterSpacing = 0.5.sp
+                                )
+                                Text(
+                                    text = result.outsDetail ?: "${result.totalOuts} Outs",
+                                    color = colors.textPrimary,
+                                    fontSize = 13.sp,
                                     fontWeight = FontWeight.Bold
                                 )
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                                ) {
-                                    Text(
-                                        text = result.outsDetail ?: "${result.totalOuts} Outs",
-                                        color = Color.White,
-                                        fontSize = 13.sp,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                }
                             }
                         }
                     }
@@ -274,9 +267,9 @@ fun PokerHudOverlay(
                     if (!result.drawText.isNullOrBlank() || result.drawProjects.isNotEmpty()) {
                         Surface(
                             modifier = Modifier.weight(1f),
-                            color = BgSoft,
+                            color = colors.surfaceVariant,
                             shape = RoundedCornerShape(10.dp),
-                            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF1E3A5F))
+                            border = androidx.compose.foundation.BorderStroke(1.5.dp, colors.border)
                         ) {
                             Column(
                                 modifier = Modifier.padding(10.dp),
@@ -284,15 +277,16 @@ fun PokerHudOverlay(
                             ) {
                                 Text(
                                     text = "PROYECTO ACTUAL",
-                                    color = Ink3,
+                                    color = colors.textMuted,
                                     fontSize = 10.sp,
-                                    fontWeight = FontWeight.Bold
+                                    fontWeight = FontWeight.Bold,
+                                    letterSpacing = 0.5.sp
                                 )
                                 Text(
                                     text = result.drawText ?: result.drawProjects.firstOrNull()?.title ?: "Ninguno",
-                                    color = Color(0xFF60A5FA),
+                                    color = colors.accentBlue,
                                     fontSize = 13.sp,
-                                    fontWeight = FontWeight.SemiBold
+                                    fontWeight = FontWeight.Bold
                                 )
                             }
                         }
@@ -307,12 +301,13 @@ fun PokerHudOverlay(
                     ) {
                         Text(
                             text = "Posición:",
-                            color = Ink3,
-                            fontSize = 12.sp
+                            color = colors.textSecondary,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Medium
                         )
                         Text(
                             text = result.position,
-                            color = Color(0xFFFFD700),
+                            color = colors.accentGold,
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Bold
                         )
@@ -324,7 +319,8 @@ fun PokerHudOverlay(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clip(RoundedCornerShape(8.dp))
-                            .background(BgSoft)
+                            .background(colors.accentRedBg)
+                            .border(1.dp, colors.accentRed, RoundedCornerShape(8.dp))
                             .padding(8.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(6.dp)
@@ -332,13 +328,14 @@ fun PokerHudOverlay(
                         Icon(
                             imageVector = Icons.Default.Info,
                             contentDescription = null,
-                            tint = Color(0xFFF87171),
+                            tint = colors.accentRed,
                             modifier = Modifier.size(16.dp)
                         )
                         Text(
                             text = result.errorMessage,
-                            color = Color(0xFFFCA5A5),
-                            fontSize = 11.sp
+                            color = colors.accentRed,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Medium
                         )
                     }
                 }
@@ -352,12 +349,13 @@ fun PokerHudOverlay(
                 ) {
                     Text(
                         text = "Ninguna jugada analizada aún",
-                        color = Ink3,
-                        fontSize = 14.sp
+                        color = colors.textSecondary,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Medium
                     )
                     Text(
                         text = "Pulsa 'Capturar y Evaluar con Gemini' para analizar la mesa",
-                        color = Ink3,
+                        color = colors.textMuted,
                         fontSize = 12.sp
                     )
                 }
@@ -371,31 +369,33 @@ fun GtoActionBanner(
     action: GtoAction,
     modifier: Modifier = Modifier
 ) {
+    val colors = AppTheme.colors
+
     Surface(
         modifier = modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp)),
-        color = action.bgTint,
-        border = androidx.compose.foundation.BorderStroke(1.5.dp, action.color)
+        color = if (colors.isDark) action.bgTint else colors.surfaceVariant,
+        border = androidx.compose.foundation.BorderStroke(1.5.dp, if (colors.isDark) action.color else colors.border)
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 10.dp),
+                .padding(horizontal = 16.dp, vertical = 12.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column {
                 Text(
                     text = "RECOMENDACIÓN GTO",
-                    color = action.color,
+                    color = if (colors.isDark) action.color else colors.accentGreen,
                     fontSize = 10.sp,
                     fontWeight = FontWeight.Bold,
                     letterSpacing = 1.sp
                 )
                 Text(
                     text = action.title,
-                    color = Color.White,
+                    color = colors.textPrimary,
                     fontSize = 24.sp,
                     fontWeight = FontWeight.Black
                 )
@@ -405,6 +405,7 @@ fun GtoActionBanner(
                 modifier = Modifier
                     .clip(RoundedCornerShape(8.dp))
                     .background(action.color)
+                    .border(1.dp, if (colors.isDark) Color.Transparent else Color.Black, RoundedCornerShape(8.dp))
                     .padding(horizontal = 12.dp, vertical = 6.dp)
             ) {
                 Text(

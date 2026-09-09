@@ -115,19 +115,21 @@ class FloatingOverlayManager(
                 setViewTreeSavedStateRegistryOwner(serviceLifecycleOwner)
 
                 setContent {
-                    val state by PokerGameStateManager.handState.collectAsState()
-                    FloatingPokerHud(
-                        state = state,
-                        onDrag = { delta ->
-                            handleDrag(delta)
-                        },
-                        onTriggerClick = {
-                            onTriggerClicked()
-                        },
-                        onCloseCloud = {
-                            closeCloud()
-                        }
-                    )
+                    com.example.ui.theme.MyApplicationTheme {
+                        val state by PokerGameStateManager.handState.collectAsState()
+                        FloatingPokerHud(
+                            state = state,
+                            onDrag = { delta ->
+                                handleDrag(delta)
+                            },
+                            onTriggerClick = {
+                                onTriggerClicked()
+                            },
+                            onCloseCloud = {
+                                closeCloud()
+                            }
+                        )
+                    }
                 }
             }
 

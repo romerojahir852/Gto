@@ -1,12 +1,4 @@
-package com.example.ui
-
-import com.example.ui.theme.BgWhite
-import com.example.ui.theme.BgSoft
-import com.example.ui.theme.Ink
-import com.example.ui.theme.Ink2
-import com.example.ui.theme.Ink3
-import com.example.ui.theme.Line
-import com.example.ui.theme.Line2.components
+package com.example.ui.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -36,6 +28,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.CardSuit
 import com.example.data.PokerCard
+import com.example.ui.theme.AppTheme
 
 @Composable
 fun PokerCardView(
@@ -45,20 +38,21 @@ fun PokerCardView(
     cardHeight: Dp = 68.dp,
     isSelected: Boolean = false
 ) {
+    val colors = AppTheme.colors
     val suitColor = card.suit.color
 
     Surface(
         modifier = modifier
             .size(width = cardWidth, height = cardHeight)
-            .shadow(4.dp, RoundedCornerShape(8.dp))
+            .shadow(if (colors.isDark) 0.dp else 3.dp, RoundedCornerShape(8.dp))
             .border(
-                width = if (isSelected) 2.dp else 1.dp,
-                color = if (isSelected) Color(0xFF10B981) else Line2,
+                width = if (isSelected) 2.dp else 1.5.dp,
+                color = if (isSelected) colors.accentGreen else colors.cardFaceBorder,
                 shape = RoundedCornerShape(8.dp)
             )
             .clip(RoundedCornerShape(8.dp))
             .testTag("poker_card_${card.displayRank}_${card.suit.name}"),
-        color = Color.White
+        color = colors.cardFaceBg
     ) {
         Column(
             modifier = Modifier
@@ -96,11 +90,13 @@ fun PokerCardBadge(
     card: PokerCard,
     modifier: Modifier = Modifier
 ) {
+    val colors = AppTheme.colors
+
     Row(
         modifier = modifier
             .clip(RoundedCornerShape(6.dp))
-            .background(Color.White)
-            .border(1.dp, Color(0xFFD1D5DB), RoundedCornerShape(6.dp))
+            .background(colors.cardFaceBg)
+            .border(1.dp, colors.cardFaceBorder, RoundedCornerShape(6.dp))
             .padding(horizontal = 6.dp, vertical = 2.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(2.dp)
@@ -128,12 +124,14 @@ fun CardHandRow(
     cardWidth: Dp = 44.dp,
     cardHeight: Dp = 64.dp
 ) {
+    val colors = AppTheme.colors
+
     Column(modifier = modifier) {
         if (label.isNotEmpty()) {
             Text(
                 text = label,
                 style = MaterialTheme.typography.labelMedium,
-                color = Ink3,
+                color = colors.textSecondary,
                 modifier = Modifier.padding(bottom = 4.dp)
             )
         }
@@ -145,14 +143,14 @@ fun CardHandRow(
                 Box(
                     modifier = Modifier
                         .size(width = cardWidth * 2 + 6.dp, height = cardHeight)
-                        .background(BgSoft.copy(alpha = 0.5f), RoundedCornerShape(8.dp))
-                        .border(1.dp, Line2, RoundedCornerShape(8.dp)),
+                        .background(colors.surfaceVariant, RoundedCornerShape(8.dp))
+                        .border(1.5.dp, colors.border, RoundedCornerShape(8.dp)),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
                         text = "Sin cartas",
                         style = MaterialTheme.typography.bodySmall,
-                        color = Ink3
+                        color = colors.textMuted
                     )
                 }
             } else {

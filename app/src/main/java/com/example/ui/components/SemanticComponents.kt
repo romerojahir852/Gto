@@ -1,18 +1,19 @@
 package com.example.ui.components
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -23,11 +24,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.ui.theme.Ink
-import com.example.ui.theme.Ink2
-import com.example.ui.theme.Ink3
-import com.example.ui.theme.Line
-import com.example.ui.theme.Line2
+import com.example.ui.theme.AppTheme
 
 @Composable
 fun Eyebrow(
@@ -36,9 +33,10 @@ fun Eyebrow(
     light: Boolean = false,
     modifier: Modifier = Modifier
 ) {
+    val colors = AppTheme.colors
     val color = when {
-        light -> Ink3
-        else -> Ink2
+        light -> colors.textMuted
+        else -> colors.textSecondary
     }
     Row(
         modifier = modifier,
@@ -46,11 +44,11 @@ fun Eyebrow(
         horizontalArrangement = if (center) Arrangement.Center else Arrangement.Start
     ) {
         if (!center) {
-            androidx.compose.foundation.layout.Box(
+            Box(
                 modifier = Modifier
                     .size(6.dp)
                     .clip(CircleShape)
-                    .background(Ink)
+                    .background(colors.accentGreen)
             )
             Spacer(modifier = Modifier.size(10.dp))
         }
@@ -58,7 +56,7 @@ fun Eyebrow(
             text = text.uppercase(),
             color = color,
             fontFamily = FontFamily.Default,
-            fontWeight = FontWeight.Medium,
+            fontWeight = FontWeight.Bold,
             fontSize = 11.sp,
             letterSpacing = 0.35.sp
         )
@@ -72,12 +70,13 @@ fun SectionTitle(
     light: Boolean = false,
     modifier: Modifier = Modifier
 ) {
+    val colors = AppTheme.colors
     Text(
         text = text.uppercase(),
-        color = if (light) androidx.compose.ui.graphics.Color.White else Ink,
+        color = if (light) colors.textPrimary else colors.textPrimary,
         fontFamily = FontFamily.Default,
-        fontWeight = FontWeight.Light,
-        fontSize = androidx.compose.ui.unit.TextUnit.Unspecified,
+        fontWeight = FontWeight.Bold,
+        fontSize = 22.sp,
         modifier = modifier,
         textAlign = if (center) TextAlign.Center else TextAlign.Start
     )
@@ -90,12 +89,13 @@ fun SectionSub(
     light: Boolean = false,
     modifier: Modifier = Modifier
 ) {
+    val colors = AppTheme.colors
     Text(
         text = text,
-        color = if (light) androidx.compose.ui.graphics.Color(0xFFB5B5B5) else Ink2,
+        color = if (light) colors.textMuted else colors.textSecondary,
         fontFamily = FontFamily.Default,
         fontWeight = FontWeight.Normal,
-        fontSize = 15.sp,
+        fontSize = 14.sp,
         modifier = modifier,
         textAlign = if (center) TextAlign.Center else TextAlign.Start
     )
@@ -111,22 +111,24 @@ fun OptCard(
     onClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
+    val colors = AppTheme.colors
+
     Column(
         modifier = modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
-            .background(androidx.compose.ui.graphics.Color.White)
-            .border(1.dp, Line, RoundedCornerShape(12.dp))
+            .background(colors.surface)
+            .border(1.5.dp, colors.border, RoundedCornerShape(12.dp))
             .clickable(onClick = onClick)
-            .padding(26.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp)
+            .padding(20.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        androidx.compose.foundation.layout.Box(modifier = Modifier.fillMaxWidth()) {
+        Box(modifier = Modifier.fillMaxWidth()) {
             Text(
                 text = num,
-                color = Ink3,
+                color = colors.textMuted,
                 fontFamily = FontFamily.Default,
-                fontWeight = FontWeight.Medium,
+                fontWeight = FontWeight.Bold,
                 fontSize = 11.sp,
                 letterSpacing = 0.2.sp,
                 modifier = Modifier.align(Alignment.TopEnd)
@@ -134,29 +136,29 @@ fun OptCard(
             Text(
                 text = icon,
                 fontSize = 28.sp,
-                color = Ink,
+                color = colors.textPrimary,
                 modifier = Modifier.align(Alignment.TopStart)
             )
         }
         Text(
             text = title,
-            color = Ink,
+            color = colors.textPrimary,
             fontFamily = FontFamily.Default,
-            fontWeight = FontWeight.Medium,
+            fontWeight = FontWeight.Bold,
             fontSize = 17.sp,
             letterSpacing = 0.03.sp
         )
         if (free != null) {
-            androidx.compose.material3.Surface(
+            Surface(
                 shape = RoundedCornerShape(999.dp),
-                color = androidx.compose.ui.graphics.Color(0xFFF8F9FA),
-                border = androidx.compose.foundation.BorderStroke(1.dp, Line)
+                color = colors.surfaceVariant,
+                border = androidx.compose.foundation.BorderStroke(1.dp, colors.border)
             ) {
                 Text(
                     text = free.uppercase(),
-                    color = Ink3,
+                    color = colors.accentGreen,
                     fontFamily = FontFamily.Default,
-                    fontWeight = FontWeight.SemiBold,
+                    fontWeight = FontWeight.Black,
                     fontSize = 9.5.sp,
                     letterSpacing = 0.18.sp,
                     modifier = Modifier.padding(horizontal = 12.dp, vertical = 5.dp)
@@ -165,7 +167,7 @@ fun OptCard(
         }
         Text(
             text = text,
-            color = Ink2,
+            color = colors.textSecondary,
             fontFamily = FontFamily.Default,
             fontWeight = FontWeight.Normal,
             fontSize = 13.sp

@@ -7,6 +7,10 @@ import com.example.ui.theme.Ink2
 import com.example.ui.theme.Ink3
 import com.example.ui.theme.Line
 import com.example.ui.theme.Line2
+import com.example.ui.theme.AppTheme
+import com.example.ui.theme.AppThemeManager
+import androidx.compose.material.icons.filled.DarkMode
+import androidx.compose.material.icons.filled.LightMode
 
 import android.app.Activity
 import android.content.Context
@@ -159,6 +163,8 @@ fun PokerScreen(
         }
     }
 
+    val isDarkTheme by AppThemeManager.isDark.collectAsState()
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -171,24 +177,23 @@ fun PokerScreen(
                             modifier = Modifier
                                 .size(38.dp)
                                 .clip(CircleShape)
-                                .background(Ink)
-                                .border(1.dp, Line, CircleShape),
+                                .background(AppTheme.colors.textPrimary)
+                                .border(AppTheme.colors.borderWidth, AppTheme.colors.border, CircleShape),
                             contentAlignment = Alignment.Center
                         ) {
                             Text(
                                 text = "♠",
-                                color = BgWhite,
+                                color = AppTheme.colors.surface,
                                 fontSize = 18.sp,
                                 fontWeight = FontWeight.Black
                             )
                         }
                         Text(
                             text = "POKER GTO VISION",
-                            color = Ink,
-                            fontFamily = androidx.compose.ui.text.font.FontFamily.Default,
-                            fontWeight = FontWeight.SemiBold,
-                            fontSize = 13.sp,
-                            letterSpacing = 0.28.sp
+                            color = AppTheme.colors.textPrimary,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 14.sp,
+                            letterSpacing = 0.5.sp
                         )
                     }
                 },
@@ -197,6 +202,18 @@ fun PokerScreen(
                         verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier.padding(end = 8.dp)
                     ) {
+                        IconButton(
+                            onClick = { AppThemeManager.toggleTheme(context) },
+                            modifier = Modifier.padding(end = 2.dp)
+                        ) {
+                            Icon(
+                                imageVector = if (isDarkTheme) Icons.Default.LightMode else Icons.Default.DarkMode,
+                                contentDescription = if (isDarkTheme) "Cambiar a Modo Claro" else "Cambiar a Modo Oscuro",
+                                tint = AppTheme.colors.textPrimary,
+                                modifier = Modifier.size(22.dp)
+                            )
+                        }
+
                         IconButton(
                             onClick = { showApiKeyModal = true },
                             modifier = Modifier.padding(end = 4.dp)
@@ -211,10 +228,10 @@ fun PokerScreen(
 
                         androidx.compose.material3.Surface(
                             shape = RoundedCornerShape(999.dp),
-                            color = if (isServiceRunning) Color(0xFFECFDF5) else Color(0xFFF3F4F6),
+                            color = if (isServiceRunning) Color(0xFFECFDF5) else AppTheme.colors.surface,
                             border = androidx.compose.foundation.BorderStroke(
-                                1.dp,
-                                if (isServiceRunning) Color(0xFFA7F3D0) else Color(0xFFDCDCDC)
+                                AppTheme.colors.borderWidth,
+                                if (isServiceRunning) Color(0xFF10B981) else AppTheme.colors.border
                             )
                         ) {
                             Row(
@@ -226,11 +243,11 @@ fun PokerScreen(
                                     modifier = Modifier
                                         .size(6.dp)
                                         .clip(CircleShape)
-                                        .background(if (isServiceRunning) Color(0xFF10B981) else Ink3)
+                                        .background(if (isServiceRunning) Color(0xFF10B981) else AppTheme.colors.textMuted)
                                 )
                                 Text(
                                     text = if (isServiceRunning) "Captura activa" else "Captura inactiva",
-                                    color = if (isServiceRunning) Color(0xFF047857) else Ink3,
+                                    color = if (isServiceRunning) Color(0xFF047857) else AppTheme.colors.textSecondary,
                                     fontSize = 10.sp,
                                     fontWeight = FontWeight.Bold
                                 )
@@ -239,7 +256,7 @@ fun PokerScreen(
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = BgWhite.copy(alpha = 0.92f)
+                    containerColor = AppTheme.colors.background.copy(alpha = 0.95f)
                 )
             )
         },
@@ -265,7 +282,7 @@ fun PokerScreen(
                 }
             )
         },
-        containerColor = BgWhite,
+        containerColor = AppTheme.colors.background,
         modifier = modifier.fillMaxSize()
     ) { innerPadding ->
         Box(modifier = Modifier.fillMaxSize()) {
@@ -292,10 +309,10 @@ fun PokerScreen(
                         com.example.ui.components.Eyebrow(text = "Fase de la mano")
                         Text(
                             text = "Prompt optimizado GTO",
-                            color = Ink,
+                            color = AppTheme.colors.textPrimary,
                             fontFamily = androidx.compose.ui.text.font.FontFamily.Default,
-                            fontWeight = FontWeight.Light,
-                            fontSize = 24.sp,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 22.sp,
                             letterSpacing = 0.02.sp
                         )
                         com.example.ui.components.SectionSub(
@@ -314,10 +331,10 @@ fun PokerScreen(
                         com.example.ui.components.Eyebrow(text = "Memoria GTO")
                         Text(
                             text = "Estado de la mesa",
-                            color = Ink,
+                            color = AppTheme.colors.textPrimary,
                             fontFamily = androidx.compose.ui.text.font.FontFamily.Default,
-                            fontWeight = FontWeight.Light,
-                            fontSize = 24.sp,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 22.sp,
                             letterSpacing = 0.02.sp
                         )
                         com.example.ui.components.SectionSub(
@@ -342,10 +359,10 @@ fun PokerScreen(
                         com.example.ui.components.Eyebrow(text = "Resultado en vivo")
                         Text(
                             text = "Jugada GTO recomendada",
-                            color = Ink,
+                            color = AppTheme.colors.textPrimary,
                             fontFamily = androidx.compose.ui.text.font.FontFamily.Default,
-                            fontWeight = FontWeight.Light,
-                            fontSize = 24.sp,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 22.sp,
                             letterSpacing = 0.02.sp
                         )
                         Spacer(modifier = Modifier.height(8.dp))
@@ -361,10 +378,10 @@ fun PokerScreen(
                         com.example.ui.components.Eyebrow(text = "Overlay flotante")
                         Text(
                             text = "Nube sobre la mesa",
-                            color = Ink,
+                            color = AppTheme.colors.textPrimary,
                             fontFamily = androidx.compose.ui.text.font.FontFamily.Default,
-                            fontWeight = FontWeight.Light,
-                            fontSize = 24.sp,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 22.sp,
                             letterSpacing = 0.02.sp
                         )
                         com.example.ui.components.SectionSub(
@@ -422,10 +439,10 @@ fun PokerScreen(
                         com.example.ui.components.Eyebrow(text = "Motor de Inteligencia")
                         Text(
                             text = "Gemini AI y OCR Local",
-                            color = Ink,
+                            color = AppTheme.colors.textPrimary,
                             fontFamily = androidx.compose.ui.text.font.FontFamily.Default,
-                            fontWeight = FontWeight.Light,
-                            fontSize = 24.sp,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 22.sp,
                             letterSpacing = 0.02.sp
                         )
                         com.example.ui.components.SectionSub(
@@ -441,10 +458,10 @@ fun PokerScreen(
                         com.example.ui.components.Eyebrow(text = "Pilares del prompt")
                         Text(
                             text = "Arquitectura espacial",
-                            color = Ink,
+                            color = AppTheme.colors.textPrimary,
                             fontFamily = androidx.compose.ui.text.font.FontFamily.Default,
-                            fontWeight = FontWeight.Light,
-                            fontSize = 24.sp,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 22.sp,
                             letterSpacing = 0.02.sp
                         )
                         Spacer(modifier = Modifier.height(8.dp))
@@ -457,10 +474,10 @@ fun PokerScreen(
                         com.example.ui.components.Eyebrow(text = "Controles rápidos")
                         Text(
                             text = "Captura y análisis",
-                            color = Ink,
+                            color = AppTheme.colors.textPrimary,
                             fontFamily = androidx.compose.ui.text.font.FontFamily.Default,
-                            fontWeight = FontWeight.Light,
-                            fontSize = 24.sp,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 22.sp,
                             letterSpacing = 0.02.sp
                         )
                         Spacer(modifier = Modifier.height(8.dp))
@@ -493,10 +510,10 @@ fun PokerScreen(
                         com.example.ui.components.Eyebrow(text = "Simulador")
                         Text(
                             text = "Manos de prueba",
-                            color = Ink,
+                            color = AppTheme.colors.textPrimary,
                             fontFamily = androidx.compose.ui.text.font.FontFamily.Default,
-                            fontWeight = FontWeight.Light,
-                            fontSize = 24.sp,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 22.sp,
                             letterSpacing = 0.02.sp
                         )
                         com.example.ui.components.SectionSub(
@@ -522,10 +539,10 @@ fun PokerScreen(
                             ) {
                                 Text(
                                     text = "Manos evaluadas",
-                                    color = Ink,
+                                    color = AppTheme.colors.textPrimary,
                                     fontFamily = androidx.compose.ui.text.font.FontFamily.Default,
-                                    fontWeight = FontWeight.Light,
-                                    fontSize = 24.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 22.sp,
                                     letterSpacing = 0.02.sp
                                 )
                                 IconButton(
@@ -535,7 +552,7 @@ fun PokerScreen(
                                     Icon(
                                         imageVector = Icons.Default.Delete,
                                         contentDescription = "Limpiar historial",
-                                        tint = Ink3,
+                                        tint = AppTheme.colors.textSecondary,
                                         modifier = Modifier.size(18.dp)
                                     )
                                 }
@@ -570,13 +587,13 @@ fun StreetModeSelector(
         modifier = modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(14.dp)),
-        color = BgSoft,
-        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF1D3B2C))
+        color = AppTheme.colors.surface,
+        border = androidx.compose.foundation.BorderStroke(AppTheme.colors.borderWidth, AppTheme.colors.border)
     ) {
-        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Text(
                 text = "FASE DE LA MANO (PROMPT OPTIMIZADO GTO)",
-                color = Color(0xFF00E676),
+                color = AppTheme.colors.textPrimary,
                 fontSize = 11.sp,
                 fontWeight = FontWeight.Bold,
                 letterSpacing = 1.sp
@@ -594,10 +611,10 @@ fun StreetModeSelector(
                             .clip(RoundedCornerShape(10.dp))
                             .clickable { onStreetSelected(street) }
                             .testTag("street_${street.name.lowercase()}_tab"),
-                        color = if (isSelected) Color(0xFF00E676) else BgSoft,
+                        color = if (isSelected) AppTheme.colors.accentSelected else AppTheme.colors.surfaceMuted,
                         border = androidx.compose.foundation.BorderStroke(
-                            1.dp,
-                            if (isSelected) Color(0xFF00E676) else Color(0xFF264736)
+                            AppTheme.colors.borderWidth,
+                            if (isSelected) AppTheme.colors.border else AppTheme.colors.borderSubtle
                         )
                     ) {
                         Column(
@@ -606,7 +623,7 @@ fun StreetModeSelector(
                         ) {
                             Text(
                                 text = street.displayName,
-                                color = if (isSelected) Color.Black else Color.White,
+                                color = if (isSelected) AppTheme.colors.accentSelectedText else AppTheme.colors.textPrimary,
                                 fontSize = 13.sp,
                                 fontWeight = FontWeight.Bold
                             )
@@ -616,7 +633,7 @@ fun StreetModeSelector(
                                     Street.POSTFLOP -> "Outs & Win %"
                                     Street.FAST_GTO -> "< 1s Directo"
                                 },
-                                color = if (isSelected) Color(0xFF1E3A2B) else Ink3,
+                                color = if (isSelected) AppTheme.colors.accentSelectedText.copy(alpha = 0.85f) else AppTheme.colors.textSecondary,
                                 fontSize = 10.sp,
                                 textAlign = TextAlign.Center,
                                 maxLines = 1,
@@ -646,12 +663,12 @@ fun BettingUnitSelectorCard(
         modifier = modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(14.dp)),
-        color = BgSoft,
-        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF1D3B2C))
+        color = AppTheme.colors.surface,
+        border = androidx.compose.foundation.BorderStroke(AppTheme.colors.borderWidth, AppTheme.colors.border)
     ) {
         Column(
-            modifier = Modifier.padding(12.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
+            modifier = Modifier.padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -660,21 +677,22 @@ fun BettingUnitSelectorCard(
             ) {
                 Text(
                     text = "ESTADO Y MEMORIA GTO",
-                    color = Color(0xFF00E676),
+                    color = AppTheme.colors.textPrimary,
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Bold,
                     letterSpacing = 1.sp
                 )
                 Surface(
-                    shape = RoundedCornerShape(4.dp),
-                    color = if (currentUnit == BettingUnit.BB) Color(0xFF00E676).copy(alpha = 0.2f) else Color(0xFFFFD700).copy(alpha = 0.2f)
+                    shape = RoundedCornerShape(6.dp),
+                    color = AppTheme.colors.surfaceMuted,
+                    border = androidx.compose.foundation.BorderStroke(1.dp, AppTheme.colors.borderSubtle)
                 ) {
                     Text(
-                        text = if (currentUnit == BettingUnit.BB) "MODO CIEGAS" else "MODO DINERO/FICHAS",
-                        color = if (currentUnit == BettingUnit.BB) Color(0xFF00E676) else Color(0xFFFFD700),
+                        text = if (currentUnit == BettingUnit.BB) "MODO CIEGAS (BB)" else "MODO DINERO ($)",
+                        color = AppTheme.colors.textPrimary,
                         fontSize = 9.sp,
                         fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
                     )
                 }
             }
@@ -682,12 +700,12 @@ fun BettingUnitSelectorCard(
             // GTO Controls: Jugadores Activos (+ / -), Botón Dealer y Posición
             Surface(
                 shape = RoundedCornerShape(10.dp),
-                color = Color(0xFF0C1912),
-                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF1B3728))
+                color = AppTheme.colors.surfaceMuted,
+                border = androidx.compose.foundation.BorderStroke(1.dp, AppTheme.colors.borderSubtle)
             ) {
                 Column(
-                    modifier = Modifier.padding(10.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                    modifier = Modifier.padding(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -697,14 +715,15 @@ fun BettingUnitSelectorCard(
                         Column {
                             Text(
                                 text = "Jugadores Activos:",
-                                color = Color(0xFFE2E8F0),
+                                color = AppTheme.colors.textPrimary,
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.SemiBold
                             )
                             Text(
                                 text = "Detección visual automática",
-                                color = Color(0xFF00E676),
-                                fontSize = 9.sp
+                                color = AppTheme.colors.accent,
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Medium
                             )
                         }
 
@@ -714,7 +733,8 @@ fun BettingUnitSelectorCard(
                         ) {
                             Surface(
                                 shape = CircleShape,
-                                color = BgSoft,
+                                color = AppTheme.colors.surface,
+                                border = androidx.compose.foundation.BorderStroke(1.dp, AppTheme.colors.borderSubtle),
                                 modifier = Modifier
                                     .size(28.dp)
                                     .testTag("dashboard_btn_dec_players")
@@ -724,7 +744,7 @@ fun BettingUnitSelectorCard(
                                     Icon(
                                         imageVector = Icons.Default.Remove,
                                         contentDescription = "Restar jugador",
-                                        tint = Color(0xFF00E676),
+                                        tint = AppTheme.colors.textPrimary,
                                         modifier = Modifier.size(16.dp)
                                     )
                                 }
@@ -732,21 +752,22 @@ fun BettingUnitSelectorCard(
 
                             Surface(
                                 shape = RoundedCornerShape(6.dp),
-                                color = BgSoft,
-                                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF00E676))
+                                color = AppTheme.colors.surface,
+                                border = androidx.compose.foundation.BorderStroke(AppTheme.colors.borderWidth, AppTheme.colors.border)
                             ) {
                                 Text(
                                     text = "$jugadores",
-                                    color = Color(0xFF00E676),
+                                    color = AppTheme.colors.textPrimary,
                                     fontSize = 14.sp,
                                     fontWeight = FontWeight.Black,
-                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 2.dp)
                                 )
                             }
 
                             Surface(
                                 shape = CircleShape,
-                                color = BgSoft,
+                                color = AppTheme.colors.surface,
+                                border = androidx.compose.foundation.BorderStroke(1.dp, AppTheme.colors.borderSubtle),
                                 modifier = Modifier
                                     .size(28.dp)
                                     .testTag("dashboard_btn_inc_players")
@@ -756,7 +777,7 @@ fun BettingUnitSelectorCard(
                                     Icon(
                                         imageVector = Icons.Default.Add,
                                         contentDescription = "Sumar jugador",
-                                        tint = Color(0xFF00E676),
+                                        tint = AppTheme.colors.textPrimary,
                                         modifier = Modifier.size(16.dp)
                                     )
                                 }
@@ -788,7 +809,7 @@ fun BettingUnitSelectorCard(
                             }
                             Text(
                                 text = "Botón Dealer:",
-                                color = Color(0xFFCBD5E1),
+                                color = AppTheme.colors.textPrimary,
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.Medium
                             )
@@ -799,17 +820,21 @@ fun BettingUnitSelectorCard(
                                 val isDealer = dealerPosition.equals(dPos, ignoreCase = true)
                                 Surface(
                                     shape = RoundedCornerShape(4.dp),
-                                    color = if (isDealer) Color(0xFFFFD700) else Line2,
+                                    color = if (isDealer) Color(0xFFFFD700) else AppTheme.colors.surface,
+                                    border = androidx.compose.foundation.BorderStroke(
+                                        1.dp,
+                                        if (isDealer) AppTheme.colors.border else AppTheme.colors.borderSubtle
+                                    ),
                                     modifier = Modifier
                                         .testTag("dashboard_dealer_$dPos")
                                         .clickable { GTOStateManager.setDealerPosition(dPos) }
                                 ) {
                                     Text(
                                         text = dPos,
-                                        color = if (isDealer) Color.Black else Ink3,
+                                        color = if (isDealer) Color.Black else AppTheme.colors.textSecondary,
                                         fontSize = 9.sp,
                                         fontWeight = if (isDealer) FontWeight.Black else FontWeight.Medium,
-                                        modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
+                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                                     )
                                 }
                             }
@@ -824,8 +849,9 @@ fun BettingUnitSelectorCard(
                     ) {
                         Text(
                             text = "Mi Posición:",
-                            color = Ink3,
-                            fontSize = 11.sp
+                            color = AppTheme.colors.textPrimary,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Medium
                         )
 
                         Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -833,14 +859,18 @@ fun BettingUnitSelectorCard(
                                 val isSelected = posicion.equals(pos, ignoreCase = true)
                                 Surface(
                                     shape = RoundedCornerShape(6.dp),
-                                    color = if (isSelected) Color(0xFF00E676) else Color(0xFF142A1E),
+                                    color = if (isSelected) AppTheme.colors.accentSelected else AppTheme.colors.surface,
+                                    border = androidx.compose.foundation.BorderStroke(
+                                        1.dp,
+                                        if (isSelected) AppTheme.colors.border else AppTheme.colors.borderSubtle
+                                    ),
                                     modifier = Modifier
                                         .testTag("dashboard_pos_$pos")
                                         .clickable { GTOStateManager.setPosition(pos) }
                                 ) {
                                     Text(
                                         text = pos,
-                                        color = if (isSelected) Color.Black else Color(0xFFCBD5E1),
+                                        color = if (isSelected) AppTheme.colors.accentSelectedText else AppTheme.colors.textSecondary,
                                         fontSize = 10.sp,
                                         fontWeight = if (isSelected) FontWeight.Black else FontWeight.Medium,
                                         modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp)
@@ -853,12 +883,13 @@ fun BettingUnitSelectorCard(
                     // Orden de la Mesa / Posiciones activas calculadas
                     Surface(
                         shape = RoundedCornerShape(6.dp),
-                        color = Color(0xFF08120D),
+                        color = AppTheme.colors.surface,
+                        border = androidx.compose.foundation.BorderStroke(1.dp, AppTheme.colors.borderSubtle),
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Text(
                             text = "Mesa: $tablePositionsSummary",
-                            color = Ink3,
+                            color = AppTheme.colors.textSecondary,
                             fontSize = 9.sp,
                             modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                         )
@@ -868,8 +899,9 @@ fun BettingUnitSelectorCard(
 
             Text(
                 text = "Unidad de Apuestas de la Mesa:",
-                color = Ink3,
-                fontSize = 11.sp
+                color = AppTheme.colors.textPrimary,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.SemiBold
             )
 
             Row(
@@ -884,10 +916,10 @@ fun BettingUnitSelectorCard(
                         .clip(RoundedCornerShape(10.dp))
                         .clickable { onUnitSelected(BettingUnit.BB) }
                         .testTag("unit_selector_bb"),
-                    color = if (isBb) Color(0xFF00E676) else BgSoft,
+                    color = if (isBb) AppTheme.colors.accentSelected else AppTheme.colors.surfaceMuted,
                     border = androidx.compose.foundation.BorderStroke(
-                        1.dp,
-                        if (isBb) Color(0xFF00E676) else Color(0xFF264736)
+                        AppTheme.colors.borderWidth,
+                        if (isBb) AppTheme.colors.border else AppTheme.colors.borderSubtle
                     )
                 ) {
                     Column(
@@ -897,13 +929,13 @@ fun BettingUnitSelectorCard(
                     ) {
                         Text(
                             text = "Ciegas (BB)",
-                            color = if (isBb) Color.Black else Color.White,
+                            color = if (isBb) AppTheme.colors.accentSelectedText else AppTheme.colors.textPrimary,
                             fontSize = 13.sp,
                             fontWeight = FontWeight.Bold
                         )
                         Text(
                             text = "ej. 150 BB / 25 BB",
-                            color = if (isBb) Color(0xFF1E3A2B) else Ink3,
+                            color = if (isBb) AppTheme.colors.accentSelectedText.copy(alpha = 0.85f) else AppTheme.colors.textSecondary,
                             fontSize = 10.sp
                         )
                     }
@@ -917,10 +949,10 @@ fun BettingUnitSelectorCard(
                         .clip(RoundedCornerShape(10.dp))
                         .clickable { onUnitSelected(BettingUnit.CHIPS) }
                         .testTag("unit_selector_chips"),
-                    color = if (isChips) Color(0xFFFFD700) else BgSoft,
+                    color = if (isChips) AppTheme.colors.accentSelected else AppTheme.colors.surfaceMuted,
                     border = androidx.compose.foundation.BorderStroke(
-                        1.dp,
-                        if (isChips) Color(0xFFFFD700) else Color(0xFF264736)
+                        AppTheme.colors.borderWidth,
+                        if (isChips) AppTheme.colors.border else AppTheme.colors.borderSubtle
                     )
                 ) {
                     Column(
@@ -930,13 +962,13 @@ fun BettingUnitSelectorCard(
                     ) {
                         Text(
                             text = "Fichas / Cash ($)",
-                            color = if (isChips) Color.Black else Color.White,
+                            color = if (isChips) AppTheme.colors.accentSelectedText else AppTheme.colors.textPrimary,
                             fontSize = 13.sp,
                             fontWeight = FontWeight.Bold
                         )
                         Text(
                             text = "ej. $1,500 / $250",
-                            color = if (isChips) Color(0xFF382A0F) else Ink3,
+                            color = if (isChips) AppTheme.colors.accentSelectedText.copy(alpha = 0.85f) else AppTheme.colors.textSecondary,
                             fontSize = 10.sp
                         )
                     }
@@ -946,7 +978,8 @@ fun BettingUnitSelectorCard(
             // Vista en tiempo real de Bote y Rival
             Surface(
                 shape = RoundedCornerShape(8.dp),
-                color = Color(0xFF0A1610)
+                color = AppTheme.colors.surfaceMuted,
+                border = androidx.compose.foundation.BorderStroke(1.dp, AppTheme.colors.borderSubtle)
             ) {
                 Row(
                     modifier = Modifier
@@ -957,12 +990,12 @@ fun BettingUnitSelectorCard(
                 ) {
                     Text(
                         text = "Valores actuales en Nube:",
-                        color = Ink3,
+                        color = AppTheme.colors.textSecondary,
                         fontSize = 10.sp
                     )
                     Text(
                         text = "Bote: $boteDisplay  |  Rival: $apuestaDisplay",
-                        color = if (currentUnit == BettingUnit.BB) Color(0xFF00E676) else Color(0xFFFFD700),
+                        color = AppTheme.colors.textPrimary,
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold
                     )
@@ -985,8 +1018,8 @@ fun ActionControlCard(
         modifier = modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(14.dp)),
-        color = BgSoft,
-        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF1D3B2C))
+        color = AppTheme.colors.surface,
+        border = androidx.compose.foundation.BorderStroke(AppTheme.colors.borderWidth, AppTheme.colors.border)
     ) {
         Column(
             modifier = Modifier.padding(14.dp),
@@ -997,10 +1030,11 @@ fun ActionControlCard(
                 onClick = onAnalyzeNow,
                 enabled = !isAnalyzing,
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(0xFF00E676),
-                    contentColor = Color.Black
+                    containerColor = AppTheme.colors.accentSelected,
+                    contentColor = AppTheme.colors.accentSelectedText
                 ),
                 shape = RoundedCornerShape(12.dp),
+                border = androidx.compose.foundation.BorderStroke(AppTheme.colors.borderWidth, AppTheme.colors.border),
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(50.dp)
@@ -1009,13 +1043,15 @@ fun ActionControlCard(
                 Icon(
                     imageVector = Icons.Default.Speed,
                     contentDescription = null,
+                    tint = AppTheme.colors.accentSelectedText,
                     modifier = Modifier.size(20.dp)
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
                     text = if (isAnalyzing) "Analizando con Gemini..." else "Capturar y Evaluar con Gemini",
                     fontSize = 15.sp,
-                    fontWeight = FontWeight.Black
+                    fontWeight = FontWeight.Black,
+                    color = AppTheme.colors.accentSelectedText
                 )
             }
 
@@ -1030,11 +1066,11 @@ fun ActionControlCard(
                     },
                     shape = RoundedCornerShape(10.dp),
                     colors = ButtonDefaults.outlinedButtonColors(
-                        contentColor = if (isServiceRunning) Color(0xFFEF4444) else Color(0xFF60A5FA)
+                        contentColor = if (isServiceRunning) Color(0xFFEF4444) else AppTheme.colors.textPrimary
                     ),
                     border = androidx.compose.foundation.BorderStroke(
-                        1.dp,
-                        if (isServiceRunning) Color(0xFFEF4444) else Color(0xFF3B82F6)
+                        AppTheme.colors.borderWidth,
+                        if (isServiceRunning) Color(0xFFEF4444) else AppTheme.colors.border
                     ),
                     modifier = Modifier
                         .fillMaxWidth()
@@ -1043,13 +1079,15 @@ fun ActionControlCard(
                     Icon(
                         imageVector = if (isServiceRunning) Icons.Default.Stop else Icons.Default.PlayArrow,
                         contentDescription = null,
+                        tint = if (isServiceRunning) Color(0xFFEF4444) else AppTheme.colors.textPrimary,
                         modifier = Modifier.size(16.dp)
                     )
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
                         text = if (isServiceRunning) "Detener Servicio de Captura" else "Iniciar Captura de Pantalla Real",
                         fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold
+                        fontWeight = FontWeight.Bold,
+                        color = if (isServiceRunning) Color(0xFFEF4444) else AppTheme.colors.textPrimary
                     )
                 }
             }
@@ -1068,8 +1106,8 @@ fun SimulatorSection(
         modifier = modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(14.dp)),
-        color = BgSoft,
-        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF1C3A2A))
+        color = AppTheme.colors.surface,
+        border = androidx.compose.foundation.BorderStroke(AppTheme.colors.borderWidth, AppTheme.colors.border)
     ) {
         Column(
             modifier = Modifier.padding(14.dp),
@@ -1087,19 +1125,19 @@ fun SimulatorSection(
                     Icon(
                         imageVector = Icons.Default.Casino,
                         contentDescription = null,
-                        tint = Color(0xFFFFD700),
+                        tint = Color(0xFFFFB800),
                         modifier = Modifier.size(18.dp)
                     )
                     Text(
                         text = "Mano de Prueba / Simulador",
-                        color = Color.White,
+                        color = AppTheme.colors.textPrimary,
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Bold
                     )
                 }
                 Text(
                     text = "Prueba Directa en Emulador",
-                    color = Ink3,
+                    color = AppTheme.colors.textSecondary,
                     fontSize = 11.sp
                 )
             }
@@ -1115,10 +1153,10 @@ fun SimulatorSection(
                             .clip(RoundedCornerShape(10.dp))
                             .clickable { onPresetSelected(preset) }
                             .testTag("preset_${preset.name.replace(" ", "_")}"),
-                        color = if (isSelected) Color(0xFF1E4330) else Color(0xFF14271D),
+                        color = if (isSelected) AppTheme.colors.accentSelected else AppTheme.colors.surfaceMuted,
                         border = androidx.compose.foundation.BorderStroke(
-                            1.5.dp,
-                            if (isSelected) Color(0xFF00E676) else Color(0xFF264936)
+                            AppTheme.colors.borderWidth,
+                            if (isSelected) AppTheme.colors.border else AppTheme.colors.borderSubtle
                         )
                     ) {
                         Column(
@@ -1127,13 +1165,13 @@ fun SimulatorSection(
                         ) {
                             Text(
                                 text = preset.name,
-                                color = if (isSelected) Color(0xFF00E676) else Color.White,
+                                color = if (isSelected) AppTheme.colors.accentSelectedText else AppTheme.colors.textPrimary,
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.Bold
                             )
                             Text(
                                 text = preset.description,
-                                color = Ink3,
+                                color = if (isSelected) AppTheme.colors.accentSelectedText.copy(alpha = 0.8f) else AppTheme.colors.textSecondary,
                                 fontSize = 10.sp,
                                 maxLines = 1
                             )
@@ -1149,7 +1187,7 @@ fun SimulatorSection(
                         .fillMaxWidth()
                         .aspectRatio(16f / 9f)
                         .clip(RoundedCornerShape(10.dp))
-                        .border(1.dp, Color(0xFF264936), RoundedCornerShape(10.dp))
+                        .border(AppTheme.colors.borderWidth, AppTheme.colors.border, RoundedCornerShape(10.dp))
                 ) {
                     Image(
                         bitmap = previewBitmap.asImageBitmap(),
@@ -1171,8 +1209,8 @@ fun HistoryItemCard(
         modifier = modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp)),
-        color = BgSoft,
-        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF1A3325))
+        color = AppTheme.colors.surface,
+        border = androidx.compose.foundation.BorderStroke(AppTheme.colors.borderWidth, AppTheme.colors.border)
     ) {
         Row(
             modifier = Modifier
@@ -1188,13 +1226,13 @@ fun HistoryItemCard(
                 ) {
                     Text(
                         text = result.street.displayName,
-                        color = Color(0xFF00E676),
+                        color = AppTheme.colors.textPrimary,
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold
                     )
                     Text(
                         text = "• ${result.latencyMs} ms",
-                        color = Ink3,
+                        color = AppTheme.colors.textSecondary,
                         fontSize = 11.sp
                     )
                 }
@@ -1206,7 +1244,7 @@ fun HistoryItemCard(
                     if (result.communityCards.isNotEmpty()) {
                         Text(
                             text = "|",
-                            color = Color(0xFF4B5563),
+                            color = AppTheme.colors.borderSubtle,
                             modifier = Modifier.padding(horizontal = 4.dp)
                         )
                         result.communityCards.forEach { card ->
@@ -1218,8 +1256,9 @@ fun HistoryItemCard(
                 if (!result.drawText.isNullOrBlank() || !result.outsDetail.isNullOrBlank()) {
                     Text(
                         text = listOfNotNull(result.drawText, result.outsDetail).joinToString(" • "),
-                        color = Color(0xFF60A5FA),
-                        fontSize = 11.sp
+                        color = AppTheme.colors.accent,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Medium
                     )
                 }
             }
@@ -1259,8 +1298,8 @@ private fun FloatingOverlayControlCard(
 ) {
     Card(
         shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = BgSoft),
-        border = androidx.compose.foundation.BorderStroke(1.5.dp, Color(0xFF1E293B)),
+        colors = CardDefaults.cardColors(containerColor = AppTheme.colors.surface),
+        border = androidx.compose.foundation.BorderStroke(AppTheme.colors.borderWidth, AppTheme.colors.border),
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(
@@ -1279,12 +1318,12 @@ private fun FloatingOverlayControlCard(
                     Icon(
                         imageVector = Icons.Default.Layers,
                         contentDescription = null,
-                        tint = Color(0xFF38BDF8),
+                        tint = AppTheme.colors.textPrimary,
                         modifier = Modifier.size(20.dp)
                     )
                     Text(
                         text = "Superposición Flotante (Floating UI)",
-                        color = Color.White,
+                        color = AppTheme.colors.textPrimary,
                         fontSize = 15.sp,
                         fontWeight = FontWeight.Bold
                     )
@@ -1292,7 +1331,11 @@ private fun FloatingOverlayControlCard(
 
                 Surface(
                     shape = RoundedCornerShape(12.dp),
-                    color = if (canDrawOverlays) Color(0xFF14532D) else Color(0xFF7F1D1D)
+                    color = if (canDrawOverlays) Color(0xFFECFDF5) else Color(0xFFFEF2F2),
+                    border = androidx.compose.foundation.BorderStroke(
+                        1.dp,
+                        if (canDrawOverlays) Color(0xFF10B981) else Color(0xFFEF4444)
+                    )
                 ) {
                     Row(
                         modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
@@ -1302,12 +1345,12 @@ private fun FloatingOverlayControlCard(
                         Icon(
                             imageVector = if (canDrawOverlays) Icons.Default.CheckCircle else Icons.Default.Warning,
                             contentDescription = null,
-                            tint = if (canDrawOverlays) Color(0xFF4ADE80) else Color(0xFFF87171),
+                            tint = if (canDrawOverlays) Color(0xFF047857) else Color(0xFFDC2626),
                             modifier = Modifier.size(12.dp)
                         )
                         Text(
                             text = if (canDrawOverlays) "Permiso Activo" else "Permiso Requerido",
-                            color = if (canDrawOverlays) Color(0xFF4ADE80) else Color(0xFFF87171),
+                            color = if (canDrawOverlays) Color(0xFF047857) else Color(0xFFDC2626),
                             fontSize = 10.sp,
                             fontWeight = FontWeight.Bold
                         )
@@ -1317,7 +1360,7 @@ private fun FloatingOverlayControlCard(
 
             Text(
                 text = "Muestra el botón flotante arrastrable y el panel GTO sobre cualquier mesa de póker externa (BC Poker, GG Poker, etc.).",
-                color = Ink3,
+                color = AppTheme.colors.textSecondary,
                 fontSize = 12.sp,
                 lineHeight = 16.sp
             )
@@ -1325,8 +1368,12 @@ private fun FloatingOverlayControlCard(
             if (!canDrawOverlays) {
                 Button(
                     onClick = onRequestOverlayPermission,
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2563EB)),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = AppTheme.colors.accentSelected,
+                        contentColor = AppTheme.colors.accentSelectedText
+                    ),
                     shape = RoundedCornerShape(10.dp),
+                    border = androidx.compose.foundation.BorderStroke(AppTheme.colors.borderWidth, AppTheme.colors.border),
                     modifier = Modifier
                         .fillMaxWidth()
                         .testTag("request_overlay_permission_button")
@@ -1334,13 +1381,15 @@ private fun FloatingOverlayControlCard(
                     Icon(
                         imageVector = Icons.Default.OpenInNew,
                         contentDescription = null,
+                        tint = AppTheme.colors.accentSelectedText,
                         modifier = Modifier.size(16.dp)
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
                         text = "Conceder Permiso SYSTEM_ALERT_WINDOW",
                         fontWeight = FontWeight.Bold,
-                        fontSize = 13.sp
+                        fontSize = 13.sp,
+                        color = AppTheme.colors.accentSelectedText
                     )
                 }
             } else {
@@ -1351,15 +1400,19 @@ private fun FloatingOverlayControlCard(
                     if (isServiceRunning) {
                         Button(
                             onClick = onLaunchOverlay,
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00E676)),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = AppTheme.colors.accentSelected,
+                                contentColor = AppTheme.colors.accentSelectedText
+                            ),
                             shape = RoundedCornerShape(10.dp),
+                            border = androidx.compose.foundation.BorderStroke(AppTheme.colors.borderWidth, AppTheme.colors.border),
                             modifier = Modifier
                                 .weight(1f)
                                 .testTag("launch_floating_button")
                         ) {
                             Text(
                                 text = "Mostrar Overlay",
-                                color = Color.Black,
+                                color = AppTheme.colors.accentSelectedText,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 12.sp
                             )
@@ -1368,7 +1421,7 @@ private fun FloatingOverlayControlCard(
                         OutlinedButton(
                             onClick = onStopService,
                             shape = RoundedCornerShape(10.dp),
-                            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFEF4444)),
+                            border = androidx.compose.foundation.BorderStroke(1.5.dp, Color(0xFFEF4444)),
                             modifier = Modifier.weight(1f)
                         ) {
                             Icon(Icons.Default.Stop, contentDescription = null, tint = Color(0xFFEF4444), modifier = Modifier.size(14.dp))
@@ -1383,17 +1436,21 @@ private fun FloatingOverlayControlCard(
                     } else {
                         Button(
                             onClick = onLaunchOverlay,
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00E676)),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = AppTheme.colors.accentSelected,
+                                contentColor = AppTheme.colors.accentSelectedText
+                            ),
                             shape = RoundedCornerShape(10.dp),
+                            border = androidx.compose.foundation.BorderStroke(AppTheme.colors.borderWidth, AppTheme.colors.border),
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .testTag("launch_floating_button")
                         ) {
-                            Icon(Icons.Default.PlayArrow, contentDescription = null, tint = Color.Black, modifier = Modifier.size(18.dp))
+                            Icon(Icons.Default.PlayArrow, contentDescription = null, tint = AppTheme.colors.accentSelectedText, modifier = Modifier.size(18.dp))
                             Spacer(modifier = Modifier.width(6.dp))
                             Text(
                                 text = "Iniciar Captura y Overlay Flotante",
-                                color = Color.Black,
+                                color = AppTheme.colors.accentSelectedText,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 13.sp
                             )
@@ -1412,8 +1469,8 @@ private fun FloatingOverlayControlCard(
 private fun UniversalPromptCard() {
     Card(
         shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFF0A1F16)),
-        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF1E4330)),
+        colors = CardDefaults.cardColors(containerColor = AppTheme.colors.surface),
+        border = androidx.compose.foundation.BorderStroke(AppTheme.colors.borderWidth, AppTheme.colors.border),
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(
@@ -1432,12 +1489,12 @@ private fun UniversalPromptCard() {
                     Icon(
                         imageVector = Icons.Default.Code,
                         contentDescription = null,
-                        tint = Color(0xFF00E676),
+                        tint = AppTheme.colors.textPrimary,
                         modifier = Modifier.size(18.dp)
                     )
                     Text(
                         text = "Prompt Espacial GTO Vision",
-                        color = Color(0xFF00E676),
+                        color = AppTheme.colors.textPrimary,
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Bold
                     )
@@ -1445,11 +1502,12 @@ private fun UniversalPromptCard() {
 
                 Surface(
                     shape = RoundedCornerShape(6.dp),
-                    color = Color(0xFF1B3D2B)
+                    color = AppTheme.colors.surfaceMuted,
+                    border = androidx.compose.foundation.BorderStroke(1.dp, AppTheme.colors.borderSubtle)
                 ) {
                     Text(
                         text = "⚡ Timeout 4s • Zero Crashes",
-                        color = Color(0xFFFFD700),
+                        color = AppTheme.colors.textPrimary,
                         fontSize = 10.sp,
                         fontWeight = FontWeight.Bold,
                         modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
@@ -1459,13 +1517,13 @@ private fun UniversalPromptCard() {
 
             Surface(
                 shape = RoundedCornerShape(8.dp),
-                color = BgWhite,
-                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF153322))
+                color = AppTheme.colors.surfaceMuted,
+                border = androidx.compose.foundation.BorderStroke(1.dp, AppTheme.colors.borderSubtle)
             ) {
                 val spatialPrompt = "Contexto GTO: Fase[\${state.fase}], JugadoresActivos[\${state.jugadores}], MiPosicion[\${state.posicion}], Bote[\${state.bote}]. Eres un escáner de póker estricto. REGLA 1 (CARTAS PROPIAS): Tus 2 cartas de la mano están SIEMPRE situadas en el cuadro de la PARTE INFERIOR. Selecciónalas como tus cartas propias. REGLA 2 (CARTAS COMUNITARIAS): Las cartas comunitarias (Flop, Turn, River) están alineadas exclusivamente en el CENTRO de la mesa. Responde ÚNICAMENTE con este formato Regex-ready: Cartas:[ValorPalo] | Mesa:[ValorPalo] | Outs:[Numero] | Win:[X]% | GTO:[Acción y Tamaño]. Cero explicaciones."
                 Text(
                     text = spatialPrompt,
-                    color = Color(0xFFE2E8F0),
+                    color = AppTheme.colors.textPrimary,
                     fontSize = 11.sp,
                     fontFamily = FontFamily.Monospace,
                     modifier = Modifier.padding(10.dp),
@@ -1481,11 +1539,12 @@ private fun UniversalPromptCard() {
                 tags.forEach { tag ->
                     Surface(
                         shape = RoundedCornerShape(4.dp),
-                        color = Color(0xFF12281D)
+                        color = AppTheme.colors.surfaceMuted,
+                        border = androidx.compose.foundation.BorderStroke(1.dp, AppTheme.colors.borderSubtle)
                     ) {
                         Text(
                             text = tag,
-                            color = Color(0xFF86EFAC),
+                            color = AppTheme.colors.textPrimary,
                             fontSize = 9.sp,
                             fontWeight = FontWeight.Medium,
                             modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
@@ -1510,8 +1569,8 @@ fun ApiKeySettingsCard(
     Card(
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(14.dp),
-        colors = CardDefaults.cardColors(containerColor = BgSoft),
-        border = androidx.compose.foundation.BorderStroke(1.dp, Line)
+        colors = CardDefaults.cardColors(containerColor = AppTheme.colors.surface),
+        border = androidx.compose.foundation.BorderStroke(AppTheme.colors.borderWidth, AppTheme.colors.border)
     ) {
         Column(
             modifier = Modifier.padding(16.dp),
@@ -1529,14 +1588,14 @@ fun ApiKeySettingsCard(
                     Icon(
                         imageVector = Icons.Default.Key,
                         contentDescription = null,
-                        tint = if (isConfigured) Color(0xFF10B981) else Color(0xFFF59E0B),
+                        tint = if (isConfigured) Color(0xFF059669) else Color(0xFFD97706),
                         modifier = Modifier.size(20.dp)
                     )
                     Text(
                         text = if (isConfigured) "Gemini Serie 3 Flash Activo" else "OCR Local ML Kit Activo",
                         fontSize = 15.sp,
                         fontWeight = FontWeight.Bold,
-                        color = Ink
+                        color = AppTheme.colors.textPrimary
                     )
                 }
 
@@ -1565,7 +1624,7 @@ fun ApiKeySettingsCard(
                     "Sin API Key configurada. El motor OCR Local integrado (ML Kit) lee las cartas en el dispositivo sin internet. Para activar Gemini AI (3.8 / 3.7), ingresa tu clave gratuita de Google AI Studio."
                 },
                 fontSize = 12.sp,
-                color = Ink2,
+                color = AppTheme.colors.textSecondary,
                 lineHeight = 16.sp
             )
 
@@ -1579,7 +1638,7 @@ fun ApiKeySettingsCard(
                     Text(
                         text = if (isConfigured) "Reemplazar API Key..." else "Pega tu Gemini API Key (AIzaSy...)",
                         fontSize = 12.sp,
-                        color = Ink3
+                        color = AppTheme.colors.textMuted
                     )
                 },
                 modifier = Modifier.fillMaxWidth(),
@@ -1587,14 +1646,14 @@ fun ApiKeySettingsCard(
                 textStyle = androidx.compose.ui.text.TextStyle(
                     fontSize = 12.sp,
                     fontFamily = FontFamily.Monospace,
-                    color = Ink
+                    color = AppTheme.colors.textPrimary
                 ),
                 shape = RoundedCornerShape(10.dp),
                 colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = Color(0xFF10B981),
-                    unfocusedBorderColor = Line2,
-                    focusedContainerColor = BgWhite,
-                    unfocusedContainerColor = BgWhite
+                    focusedBorderColor = AppTheme.colors.border,
+                    unfocusedBorderColor = AppTheme.colors.borderSubtle,
+                    focusedContainerColor = AppTheme.colors.surfaceMuted,
+                    unfocusedContainerColor = AppTheme.colors.surfaceMuted
                 )
             )
 
@@ -1612,6 +1671,7 @@ fun ApiKeySettingsCard(
                             saveSuccess = false
                         },
                         shape = RoundedCornerShape(8.dp),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFEF4444)),
                         colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFEF4444))
                     ) {
                         Icon(Icons.Default.Delete, contentDescription = null, modifier = Modifier.size(16.dp))
@@ -1633,11 +1693,15 @@ fun ApiKeySettingsCard(
                     },
                     enabled = inputKey.isNotBlank(),
                     shape = RoundedCornerShape(8.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF10B981))
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = AppTheme.colors.accentSelected,
+                        contentColor = AppTheme.colors.accentSelectedText
+                    ),
+                    border = androidx.compose.foundation.BorderStroke(AppTheme.colors.borderWidth, AppTheme.colors.border)
                 ) {
-                    Icon(Icons.Default.Save, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Icon(Icons.Default.Save, contentDescription = null, tint = AppTheme.colors.accentSelectedText, modifier = Modifier.size(16.dp))
                     Spacer(modifier = Modifier.width(6.dp))
-                    Text("Guardar Clave", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    Text("Guardar Clave", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = AppTheme.colors.accentSelectedText)
                 }
             }
 
@@ -1645,6 +1709,7 @@ fun ApiKeySettingsCard(
                 Surface(
                     shape = RoundedCornerShape(6.dp),
                     color = Color(0xFFECFDF5),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFA7F3D0)),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Text(
@@ -1669,10 +1734,10 @@ fun TopApiKeyStatusBanner(
 ) {
     Surface(
         shape = RoundedCornerShape(12.dp),
-        color = if (isConfigured) Color(0xFF0F291E) else Color(0xFF2E200B),
+        color = AppTheme.colors.surface,
         border = androidx.compose.foundation.BorderStroke(
-            1.dp,
-            if (isConfigured) Color(0xFF10B981) else Color(0xFFF59E0B)
+            AppTheme.colors.borderWidth,
+            if (isConfigured) AppTheme.colors.border else Color(0xFFD97706)
         ),
         modifier = modifier
             .fillMaxWidth()
@@ -1691,19 +1756,19 @@ fun TopApiKeyStatusBanner(
                 Icon(
                     imageVector = Icons.Default.Key,
                     contentDescription = null,
-                    tint = if (isConfigured) Color(0xFF10B981) else Color(0xFFF59E0B),
+                    tint = if (isConfigured) Color(0xFF059669) else Color(0xFFD97706),
                     modifier = Modifier.size(20.dp)
                 )
                 Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     Text(
                         text = if (isConfigured) "Gemini Serie 3 Flash Activo" else "Modo OCR Local (Sin API Key)",
-                        color = if (isConfigured) Color(0xFF34D399) else Color(0xFFFBBF24),
+                        color = AppTheme.colors.textPrimary,
                         fontSize = 13.sp,
                         fontWeight = FontWeight.Bold
                     )
                     Text(
                         text = if (isConfigured) "Clave: $maskedKey • Toca para gestionar" else "Escaneando en dispositivo. Toca para ingresar API Key",
-                        color = Color(0xFF94A3B8),
+                        color = AppTheme.colors.textSecondary,
                         fontSize = 10.sp
                     )
                 }
@@ -1711,11 +1776,11 @@ fun TopApiKeyStatusBanner(
 
             Surface(
                 shape = RoundedCornerShape(6.dp),
-                color = if (isConfigured) Color(0xFF065F46) else Color(0xFF78350F)
+                color = if (isConfigured) AppTheme.colors.textPrimary else Color(0xFFD97706)
             ) {
                 Text(
                     text = if (isConfigured) "GESTIONAR" else "CONFIGURAR",
-                    color = if (isConfigured) Color(0xFFA7F3D0) else Color(0xFFFDE68A),
+                    color = if (isConfigured) AppTheme.colors.surface else Color.White,
                     fontSize = 10.sp,
                     fontWeight = FontWeight.Black,
                     modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
@@ -1739,8 +1804,8 @@ fun ApiKeyConfigDialog(
     Dialog(onDismissRequest = onDismiss) {
         Card(
             shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(containerColor = Color(0xFF0F172A)),
-            border = androidx.compose.foundation.BorderStroke(1.5.dp, Color(0xFF10B981)),
+            colors = CardDefaults.cardColors(containerColor = AppTheme.colors.surface),
+            border = androidx.compose.foundation.BorderStroke(AppTheme.colors.borderWidth, AppTheme.colors.border),
             modifier = Modifier.fillMaxWidth()
         ) {
             Column(
@@ -1759,12 +1824,12 @@ fun ApiKeyConfigDialog(
                         Icon(
                             imageVector = Icons.Default.Key,
                             contentDescription = null,
-                            tint = Color(0xFF10B981),
+                            tint = AppTheme.colors.accent,
                             modifier = Modifier.size(22.dp)
                         )
                         Text(
                             text = "Gemini API Key",
-                            color = Color.White,
+                            color = AppTheme.colors.textPrimary,
                             fontSize = 16.sp,
                             fontWeight = FontWeight.Bold
                         )
@@ -1776,7 +1841,7 @@ fun ApiKeyConfigDialog(
                         Icon(
                             imageVector = Icons.Default.Close,
                             contentDescription = "Cerrar",
-                            tint = Color(0xFF94A3B8),
+                            tint = AppTheme.colors.textSecondary,
                             modifier = Modifier.size(18.dp)
                         )
                     }
@@ -1784,7 +1849,7 @@ fun ApiKeyConfigDialog(
 
                 Text(
                     text = "Para activar la visión multimodal de Gemini Serie 3 Flash (3.8 / 3.7), ingresa tu clave gratuita de Google AI Studio. Si no tienes una, la app usará automáticamente el motor OCR Local de ML Kit.",
-                    color = Color(0xFF94A3B8),
+                    color = AppTheme.colors.textSecondary,
                     fontSize = 12.sp,
                     lineHeight = 16.sp
                 )
@@ -1796,7 +1861,7 @@ fun ApiKeyConfigDialog(
                         saveSuccess = false
                     },
                     placeholder = {
-                        Text("AIzaSy...", color = Color(0xFF64748B), fontSize = 12.sp)
+                        Text("AIzaSy...", color = AppTheme.colors.textMuted, fontSize = 12.sp)
                     },
                     trailingIcon = {
                         TextButton(
@@ -1807,21 +1872,21 @@ fun ApiKeyConfigDialog(
                                 }
                             }
                         ) {
-                            Text("Pegar", color = Color(0xFF10B981), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            Text("Pegar", color = AppTheme.colors.accent, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                         }
                     },
                     singleLine = true,
                     textStyle = androidx.compose.ui.text.TextStyle(
-                        color = Color.White,
+                        color = AppTheme.colors.textPrimary,
                         fontSize = 12.sp,
                         fontFamily = FontFamily.Monospace
                     ),
                     shape = RoundedCornerShape(8.dp),
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = Color(0xFF10B981),
-                        unfocusedBorderColor = Color(0xFF334155),
-                        focusedContainerColor = Color(0xFF1E293B),
-                        unfocusedContainerColor = Color(0xFF1E293B)
+                        focusedBorderColor = AppTheme.colors.border,
+                        unfocusedBorderColor = AppTheme.colors.borderSubtle,
+                        focusedContainerColor = AppTheme.colors.surfaceMuted,
+                        unfocusedContainerColor = AppTheme.colors.surfaceMuted
                     ),
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -1836,13 +1901,13 @@ fun ApiKeyConfigDialog(
                     Icon(
                         imageVector = Icons.Default.OpenInNew,
                         contentDescription = null,
-                        tint = Color(0xFF38BDF8),
+                        tint = AppTheme.colors.accent,
                         modifier = Modifier.size(14.dp)
                     )
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
                         text = "Obtener API Key Gratis en Google AI Studio",
-                        color = Color(0xFF38BDF8),
+                        color = AppTheme.colors.accent,
                         fontSize = 11.sp,
                         fontWeight = FontWeight.SemiBold
                     )
@@ -1861,6 +1926,7 @@ fun ApiKeyConfigDialog(
                                 saveSuccess = false
                             },
                             shape = RoundedCornerShape(8.dp),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFEF4444)),
                             colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFEF4444))
                         ) {
                             Icon(Icons.Default.Delete, contentDescription = null, modifier = Modifier.size(14.dp))
@@ -1881,11 +1947,15 @@ fun ApiKeyConfigDialog(
                         },
                         enabled = inputKey.isNotBlank(),
                         shape = RoundedCornerShape(8.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF10B981))
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = AppTheme.colors.accentSelected,
+                            contentColor = AppTheme.colors.accentSelectedText
+                        ),
+                        border = androidx.compose.foundation.BorderStroke(AppTheme.colors.borderWidth, AppTheme.colors.border)
                     ) {
-                        Icon(Icons.Default.Save, contentDescription = null, tint = Color.Black, modifier = Modifier.size(16.dp))
+                        Icon(Icons.Default.Save, contentDescription = null, tint = AppTheme.colors.accentSelectedText, modifier = Modifier.size(16.dp))
                         Spacer(modifier = Modifier.width(6.dp))
-                        Text("Guardar Clave", color = Color.Black, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                        Text("Guardar Clave", color = AppTheme.colors.accentSelectedText, fontWeight = FontWeight.Bold, fontSize = 12.sp)
                     }
                 }
             }

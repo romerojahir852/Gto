@@ -1,5 +1,6 @@
 package com.example.ui.components
 
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -14,11 +15,11 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.ui.theme.BgWhite
-import com.example.ui.theme.Ink
+import com.example.ui.theme.AppTheme
 
 @Composable
 fun BottomActionBar(
@@ -26,13 +27,17 @@ fun BottomActionBar(
     isAnalyzing: Boolean,
     onAnalyzeNow: () -> Unit
 ) {
+    val colors = AppTheme.colors
+
     Surface(
-        modifier = Modifier.fillMaxWidth(),
-        color = Ink,
-        shadowElevation = 8.dp
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(1.5.dp, colors.border),
+        color = colors.surface,
+        shadowElevation = if (colors.isDark) 0.dp else 6.dp
     ) {
         Row(
-            modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 13.dp, bottom = 13.dp + 16.dp),
+            modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 12.dp + 16.dp),
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -41,29 +46,32 @@ fun BottomActionBar(
                 verticalArrangement = Arrangement.spacedBy(2.dp)
             ) {
                 Text(
-                    text = "ANALISIS GTO",
-                    color = BgWhite,
+                    text = "ANÁLISIS GTO",
+                    color = colors.textPrimary,
                     fontFamily = androidx.compose.ui.text.font.FontFamily.Default,
-                    fontWeight = FontWeight.SemiBold,
+                    fontWeight = FontWeight.Bold,
                     fontSize = 14.sp,
-                    letterSpacing = 0.14.sp
+                    letterSpacing = 0.5.sp
                 )
                 Text(
-                    text = "Latencia < 2s - Gemini AI",
-                    color = BgWhite.copy(alpha = 0.65f),
-                    fontSize = 10.5.sp,
+                    text = "Gemini 3.8 / 3.7 Flash · Visión Óptica",
+                    color = colors.textMuted,
+                    fontSize = 11.sp,
                     letterSpacing = 0.08.sp
                 )
             }
             Button(
                 onClick = onAnalyzeNow,
                 enabled = !isAnalyzing,
-                colors = ButtonDefaults.buttonColors(containerColor = BgWhite, contentColor = Ink),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = if (colors.isDark) colors.accentGreen else colors.border,
+                    contentColor = if (colors.isDark) Color.Black else Color.White
+                ),
                 shape = RoundedCornerShape(999.dp),
                 modifier = Modifier.height(44.dp)
             ) {
                 Text(
-                    text = if (isAnalyzing) "ANALIZANDO" else "CAPTURAR",
+                    text = if (isAnalyzing) "ANALIZANDO..." else "CAPTURAR",
                     fontWeight = FontWeight.Black,
                     fontSize = 11.sp,
                     letterSpacing = 0.14.sp
