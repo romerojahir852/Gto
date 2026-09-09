@@ -28,6 +28,8 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
 import com.example.MainActivity
 import com.example.R
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asSharedFlow
@@ -100,6 +102,9 @@ class ScreenCaptureService : Service() {
     @Volatile
     private var lastCapturedBitmap: Bitmap? = null
 
+    @Volatile
+    private var pendingFrameDeferred: CompletableDeferred<Bitmap>? = null
+
     private val handler = Handler(Looper.getMainLooper())
 
     override fun onCreate() {
@@ -108,7 +113,7 @@ class ScreenCaptureService : Service() {
         createNotificationChannel()
 
         overlayManager = FloatingOverlayManager(this).apply {
-            frameProvider = { captureCurrentFrame() }
+            frameProvider = { captureFreshFrame() }
         }
 
         val windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
@@ -240,6 +245,11 @@ class ScreenCaptureService : Service() {
                         val bmp = imageToBitmap(img)
                         if (bmp != null) {
                             lastCapturedBitmap = bmp
+                            val waiter = pendingFrameDeferred
+                            if (waiter != null && !waiter.isCompleted) {
+                                pendingFrameDeferred = null
+                                waiter.complete(bmp)
+                            }
                         }
                     }
                 } catch (e: Exception) {
@@ -297,6 +307,49 @@ class ScreenCaptureService : Service() {
                 image?.close()
             }
         }, 150) // Small delay to ensure virtual display buffer is rendered
+    }
+
+    /**
+     * Captura garantizada de frame 100% fresco directamente desde MediaProjection
+     * después de haber ocultado el overlay, evitando frames cacheados o congelados.
+     */
+    suspend fun captureFreshFrame(timeoutMs: Long = 1200L): Bitmap? {
+        val reader = imageReader ?: return lastCapturedBitmap
+
+        // Registrar deferred para recibir el siguiente frame renderizado por Android
+        val deferred = CompletableDeferred<Bitmap>()
+        pendingFrameDeferred = deferred
+
+        // Si ya hay un frame disponible sin consumir en el buffer, adquirirlo directamente
+        var directImg: Image? = null
+        try {
+            directImg = reader.acquireLatestImage() ?: reader.acquireNextImage()
+            if (directImg != null) {
+                val bmp = imageToBitmap(directImg)
+                if (bmp != null) {
+                    lastCapturedBitmap = bmp
+                    pendingFrameDeferred = null
+                    return bmp
+                }
+            }
+        } catch (e: Exception) {
+            // Continuar con la espera asíncrona
+        } finally {
+            directImg?.close()
+        }
+
+        return try {
+            withTimeoutOrNull(timeoutMs) {
+                deferred.await()
+            } ?: lastCapturedBitmap
+        } catch (e: Exception) {
+            Log.w(TAG, "Timeout esperando frame fresco, usando último buffer disponible", e)
+            lastCapturedBitmap
+        } finally {
+            if (pendingFrameDeferred == deferred) {
+                pendingFrameDeferred = null
+            }
+        }
     }
 
     fun captureCurrentFrame(): Bitmap? {

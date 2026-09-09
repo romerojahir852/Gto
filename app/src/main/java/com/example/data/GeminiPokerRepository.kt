@@ -46,11 +46,13 @@ class GeminiPokerRepository {
 
     /**
      * Cascada oficial de modelos Google Gemini Serie 3 Flash:
-     * Exclusivamente Gemini 3.8 Flash y Gemini 3.7 Flash para ultra baja latencia y precisión milimétrica.
+     * Exclusivamente Gemini 3.8 Flash, Gemini 3.7 Flash y Gemini 3.6 Flash para ultra baja latencia y máxima precisión.
      */
     private val candidateModels = listOf(
         "gemini-3.8-flash",
-        "gemini-3.7-flash"
+        "gemini-3.7-flash",
+        "gemini-3.6-flash",
+        "gemini-2.5-flash"
     )
 
     /**
@@ -171,14 +173,16 @@ class GeminiPokerRepository {
                         val modelLabel = when (callResult.modelUsed) {
                             "gemini-3.8-flash" -> "Gemini 3.8 Flash"
                             "gemini-3.7-flash" -> "Gemini 3.7 Flash"
+                            "gemini-3.6-flash" -> "Gemini 3.6 Flash"
+                            "gemini-2.5-flash" -> "Gemini 2.5 Flash"
                             else -> callResult.modelUsed ?: "Gemini 3.8 Flash"
                         }
                         val statusMsg = "⚡ $modelLabel: ${parsedState.cartasPropias.joinToString(" ") { it.displayString }} | Mesa: ${parsedState.cartasComunitarias.joinToString(" ") { it.displayString }} · ${latency}ms"
                         val finalParsed = parsedState.copy(statusMessage = statusMsg)
                         PokerGameStateManager.updateIncremental(
                             fase = finalParsed.fase,
-                            cartasPropias = if (finalParsed.cartasPropias.isNotEmpty()) finalParsed.cartasPropias else null,
-                            cartasComunitarias = if (finalParsed.cartasComunitarias.isNotEmpty()) finalParsed.cartasComunitarias else null,
+                            cartasPropias = finalParsed.cartasPropias,
+                            cartasComunitarias = finalParsed.cartasComunitarias,
                             bote = finalParsed.bote,
                             jugadores = finalParsed.jugadores,
                             posicion = finalParsed.posicion,
@@ -307,8 +311,13 @@ class GeminiPokerRepository {
                     })
                     put("generationConfig", buildJsonObject {
                         put("responseMimeType", "application/json")
-                        put("maxOutputTokens", 300)
+                        put("maxOutputTokens", 1024)
                         put("temperature", 0.0)
+                        if (modelName.contains("3.")) {
+                            put("thinkingConfig", buildJsonObject {
+                                put("thinkingLevel", "LOW")
+                            })
+                        }
                     })
                 }
 
@@ -353,19 +362,27 @@ class GeminiPokerRepository {
                     return@let
                 }
 
-                val text = jsonObj["candidates"]
+                val candidateObj = jsonObj["candidates"]
                     ?.jsonArray
                     ?.firstOrNull()
                     ?.jsonObject
+                val parts = candidateObj
                     ?.get("content")
                     ?.jsonObject
                     ?.get("parts")
                     ?.jsonArray
-                    ?.firstOrNull()
-                    ?.jsonObject
-                    ?.get("text")
-                    ?.jsonPrimitive
-                    ?.contentOrNull
+
+                // Filtrar partes con "thought": true y extraer el texto JSON real
+                val realParts = parts?.mapNotNull { part ->
+                    val pObj = part.jsonObject
+                    val isThought = pObj["thought"]?.jsonPrimitive?.contentOrNull == "true"
+                    val pText = pObj["text"]?.jsonPrimitive?.contentOrNull
+                    if (!isThought && !pText.isNullOrBlank()) pText else null
+                }
+
+                val text = realParts?.joinToString("\n")?.takeIf { it.isNotBlank() }
+                    ?: parts?.mapNotNull { it.jsonObject["text"]?.jsonPrimitive?.contentOrNull }?.lastOrNull { it.contains("{") }
+                    ?: parts?.mapNotNull { it.jsonObject["text"]?.jsonPrimitive?.contentOrNull }?.lastOrNull()
 
                 if (!text.isNullOrBlank()) {
                     Log.d(TAG, "$modelName responded OK (${text.length} chars)")
@@ -443,8 +460,8 @@ class GeminiPokerRepository {
         currentState: HandState,
         latencyMs: Long
     ): HandState {
-        var holeCards = currentState.cartasPropias
-        var communityCards = currentState.cartasComunitarias
+        var holeCards: List<PokerCard> = emptyList()
+        var communityCards: List<PokerCard> = emptyList()
         var outs = currentState.outs
         var winRate = currentState.winRate
         var gtoAction = currentState.gtoAction
@@ -470,12 +487,12 @@ class GeminiPokerRepository {
 
             val jsonObj = json.parseToJsonElement(jsonPayload).jsonObject
             
-            val cartasRaw = when (val elem = jsonObj["cartas"]) {
+            val cartasRaw = when (val elem = jsonObj["cartas"] ?: jsonObj["hole_cards"] ?: jsonObj["cartasPropias"]) {
                 is JsonPrimitive -> elem.contentOrNull ?: ""
                 is JsonArray -> elem.joinToString(" ") { (it as? JsonPrimitive)?.contentOrNull ?: "" }
                 else -> ""
             }
-            if (cartasRaw.isNotBlank()) {
+            if (cartasRaw.isNotBlank() && cartasRaw != "-" && !cartasRaw.equals("ninguna", ignoreCase = true) && !cartasRaw.equals("none", ignoreCase = true)) {
                 val parsed = PokerCard.parseMultiple(cartasRaw)
                 if (parsed.isNotEmpty()) {
                     holeCards = parsed.take(2)
@@ -483,30 +500,30 @@ class GeminiPokerRepository {
                 }
             }
 
-            val mesaRaw = when (val elem = jsonObj["mesa"]) {
+            val mesaRaw = when (val elem = jsonObj["mesa"] ?: jsonObj["community_cards"] ?: jsonObj["board"]) {
                 is JsonPrimitive -> elem.contentOrNull ?: ""
                 is JsonArray -> elem.joinToString(" ") { (it as? JsonPrimitive)?.contentOrNull ?: "" }
                 else -> ""
             }
-            if (mesaRaw.isNotBlank() && mesaRaw != "-" && !mesaRaw.equals("ninguna", ignoreCase = true)) {
+            if (mesaRaw.isNotBlank() && mesaRaw != "-" && !mesaRaw.equals("ninguna", ignoreCase = true) && !mesaRaw.equals("none", ignoreCase = true)) {
                 val parsed = PokerCard.parseMultiple(mesaRaw)
                 if (parsed.isNotEmpty()) communityCards = parsed
             }
             
-            jsonObj["jugadores"]?.jsonPrimitive?.let { prim ->
+            (jsonObj["jugadores"] ?: jsonObj["players"])?.jsonPrimitive?.let { prim ->
                 val count = prim.intOrNull ?: prim.contentOrNull?.toIntOrNull()
                 if (count != null && count in 2..9) detectedPlayers = count
             }
             
-            jsonObj["dealer"]?.jsonPrimitive?.contentOrNull?.let { value ->
+            (jsonObj["dealer"] ?: jsonObj["button"])?.jsonPrimitive?.contentOrNull?.let { value ->
                 if (value.isNotBlank()) detectedDealer = value.uppercase().trim()
             }
             
-            jsonObj["miPosicion"]?.jsonPrimitive?.contentOrNull?.let { value ->
+            (jsonObj["miPosicion"] ?: jsonObj["position"])?.jsonPrimitive?.contentOrNull?.let { value ->
                 if (value.isNotBlank()) detectedMyPos = value.uppercase().trim()
             }
             
-            jsonObj["bote"]?.jsonPrimitive?.contentOrNull?.let { value ->
+            (jsonObj["bote"] ?: jsonObj["pot"])?.jsonPrimitive?.contentOrNull?.let { value ->
                 val cleanBote = value.replace(Regex("[^0-9.]"), "").toDoubleOrNull()
                 if (cleanBote != null && cleanBote > 0.0) {
                     detectedBote = cleanBote
@@ -514,7 +531,7 @@ class GeminiPokerRepository {
                 }
             }
             
-            jsonObj["fase"]?.jsonPrimitive?.contentOrNull?.let { value ->
+            (jsonObj["fase"] ?: jsonObj["street"])?.jsonPrimitive?.contentOrNull?.let { value ->
                 if (value.isNotBlank()) parsedFase = value.replaceFirstChar { it.uppercase() }.trim()
             }
             

@@ -62,7 +62,7 @@ class FloatingOverlayManager(
     val hudState: StateFlow<HandState> = PokerGameStateManager.handState
 
     // Callback for triggering actual screen frame capture from ScreenCaptureService
-    var frameProvider: (() -> Bitmap?)? = null
+    var frameProvider: (suspend () -> Bitmap?)? = null
 
     /**
      * Checks if the app has permission to draw overlays over other apps
@@ -216,8 +216,8 @@ class FloatingOverlayManager(
             composeView?.alpha = 0f
         }
 
-        // 2. Delay Estratégico mínimo (100ms) para garantizar render 100% limpio en MediaProjection
-        delay(100L)
+        // 2. Delay Estratégico mínimo (120ms) para garantizar render 100% limpio en MediaProjection
+        delay(120L)
 
         // 3. Captura del frame nativo desde MediaProjection sin interferencia del botón flotante
         val rawBitmap = withContext(Dispatchers.IO) {
@@ -281,8 +281,8 @@ class FloatingOverlayManager(
      */
     fun updateWithAnalysisResult(result: PokerAnalysisResult, isSimulation: Boolean = false) {
         PokerGameStateManager.updateIncremental(
-            cartasPropias = if (result.holeCards.isNotEmpty()) result.holeCards else null,
-            cartasComunitarias = if (result.communityCards.isNotEmpty()) result.communityCards else null,
+            cartasPropias = result.holeCards,
+            cartasComunitarias = result.communityCards,
             outs = result.outsDetail ?: result.totalOuts?.let { "$it Outs" },
             winRate = result.winEquity,
             gtoAction = result.gtoAction,

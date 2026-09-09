@@ -2,6 +2,7 @@ package com.example.service
 
 import android.graphics.Bitmap
 import android.graphics.Color
+import android.graphics.PointF
 import android.graphics.Rect
 import android.util.Log
 import com.example.data.CardSuit
@@ -108,12 +109,12 @@ object LocalCardOcrDetector {
 
             // Check for Pot amount (e.g. "Bote total 2,596", "Bote total 1,520", "Bote total 1,022,984", "Bote total 324")
             if (lower.contains("bote") || lower.contains("pot")) {
-                val potRegex = Regex("""(?:bote(?:\s+total)?|pot(?:\s+total)?)\s*:?\s*[$€£]?\s*([0-9.,]+)\s*(K|M|BB)?""", RegexOption.IGNORE_CASE)
+                val potRegex = Regex("""(?:bote(?:\s+total)?|pot(?:\s+total)?|main\s+pot)\s*[:=]?\s*[$€£]?\s*([0-9.,]+)\s*(K|M|BB)?""", RegexOption.IGNORE_CASE)
                 val match = potRegex.find(blockText)
                 if (match != null) {
-                    val rawNum = match.groupValues[1].replace(",", "").trim()
+                    val rawNum = match.groupValues[1]
                     val unit = match.groupValues[2].uppercase()
-                    val baseVal = rawNum.toDoubleOrNull()
+                    val baseVal = parsePokerNumericString(rawNum)
                     if (baseVal != null && baseVal > 0) {
                         detectedPot = when (unit) {
                             "K" -> baseVal * 1000.0
@@ -165,23 +166,18 @@ object LocalCardOcrDetector {
                             candidateCards.add(DetectedCard(rank, suit, subBox))
                         }
                     }
-
-                    // Fallback Pot check near table center if keyword was missed
-                    if (detectedPot == null && box.centerY() in (height * 0.35f)..(height * 0.55f)) {
-                        val numStr = text.replace(",", "").replace("$", "").trim()
-                        val v = numStr.toDoubleOrNull()
-                        if (v != null && v in 20.0..5000000.0) {
-                            detectedPot = v
-                        }
-                    }
                 }
             }
         }
 
-        // 3. Spatially Cluster Community Cards (Center Table: y in 35%..62%, x in 10%..90%)
+        // 3. Conteo automático de jugadores activos en el perímetro de la mesa
+        val detectedPlayersCount = detectPlayerCount(visionText, width, height)
+        val finalPlayers = detectedPlayersCount ?: currentState.jugadores
+
+        // 4. Spatially Cluster Community Cards (Center Table: y in 30%..65%, x in 6%..94%)
         val boardCandidates = candidateCards.filter {
-            it.box.centerY() in (height * 0.35f)..(height * 0.62f) &&
-            it.box.centerX() in (width * 0.10f)..(width * 0.90f)
+            it.box.centerY() in (height * 0.30f)..(height * 0.65f) &&
+            it.box.centerX() in (width * 0.06f)..(width * 0.94f)
         }
 
         // Deduplicate board cards strictly by horizontal pixel position (X axis).
@@ -191,7 +187,7 @@ object LocalCardOcrDetector {
 
         for (cand in sortedBoardCandidates) {
             val isDuplicatePosition = uniquePhysicalBoardCards.any { existing ->
-                abs(existing.box.centerX() - cand.box.centerX()) < (cand.box.width() * 0.5f).coerceAtLeast(width * 0.04f)
+                abs(existing.box.centerX() - cand.box.centerX()) < (cand.box.width() * 0.4f).coerceAtLeast(width * 0.045f)
             }
             if (!isDuplicatePosition) {
                 uniquePhysicalBoardCards.add(cand)
@@ -201,11 +197,9 @@ object LocalCardOcrDetector {
         val rawBoardCards = uniquePhysicalBoardCards.take(5).map { PokerCard(it.rank, it.suit) }
         val sanitizedBoardCards = sanitizeDuplicateSuits(rawBoardCards)
 
-        // 4. Detect Hero Hole Cards (Lower Table: y > 58%)
-        // Prioritize bottom-left quadrant (GGPoker / ClubGG seat Jr699: x in 0.03..0.35, y in 0.65..0.98)
-        // and bottom-center quadrant (PokerStars / PPPoker: x in 0.25..0.75, y in 0.65..0.98)
+        // 5. Detect Hero Hole Cards (Lower Table: y > 55%)
         val heroCandidates = candidateCards.filter {
-            it.box.centerY() > height * 0.58f
+            it.box.centerY() > height * 0.55f
         }
 
         var bestHeroPair: Pair<DetectedCard, DetectedCard>? = null
@@ -242,11 +236,11 @@ object LocalCardOcrDetector {
             emptyList()
         }
 
-        // 5. Cross-Validate with Hand Combination Badge
+        // 6. Cross-Validate with Hand Combination Badge
         detectedHeroCards = crossValidateWithCombinationHint(detectedHeroCards, sanitizedBoardCards, handCombinationHint)
 
-        val finalHeroCards = if (detectedHeroCards.isNotEmpty()) detectedHeroCards else emptyList()
-        val finalBoardCards = if (sanitizedBoardCards.isNotEmpty()) sanitizedBoardCards else currentState.cartasComunitarias
+        val finalHeroCards = detectedHeroCards
+        val finalBoardCards = sanitizedBoardCards
 
         val detectedFase = when (finalBoardCards.size) {
             0 -> "Preflop"
@@ -259,12 +253,12 @@ object LocalCardOcrDetector {
         val updatedBote = detectedPot ?: currentState.bote
         val updatedBlinds = detectedBlinds ?: currentState.bigBlindSize
 
-        // 6. Calculate GTO Decision via PokerGtoEngine
+        // 7. Calculate GTO Decision via PokerGtoEngine
         val engineResult = if (finalHeroCards.isNotEmpty()) {
             PokerGtoEngine.calculate(
                 holeCards = finalHeroCards,
                 board = finalBoardCards,
-                jugadores = currentState.jugadores,
+                jugadores = finalPlayers,
                 posicion = currentState.posicion,
                 fase = detectedFase,
                 bote = updatedBote,
@@ -285,7 +279,7 @@ object LocalCardOcrDetector {
         GTOStateManager.updateFromAnalysis(
             fase = detectedFase,
             bote = updatedBote,
-            jugadores = currentState.jugadores,
+            jugadores = finalPlayers,
             dealerPos = currentState.dealerPosition,
             myPos = currentState.posicion
         )
@@ -296,6 +290,7 @@ object LocalCardOcrDetector {
             cartasComunitarias = finalBoardCards,
             bote = updatedBote,
             bigBlindSize = updatedBlinds,
+            jugadores = finalPlayers,
             outs = engineResult?.outs ?: currentState.outs,
             winRate = engineResult?.winRate ?: currentState.winRate,
             gtoAction = engineResult?.action ?: currentState.gtoAction,
@@ -472,10 +467,10 @@ object LocalCardOcrDetector {
      * - Dark/Black: Spades (or 2-color Clubs)
      */
     private fun sampleCardSuitFromPixels(bitmap: Bitmap, box: Rect): CardSuit {
-        val sampleLeft = (box.left - 8).coerceIn(0, bitmap.width - 1)
-        val sampleTop = (box.top - 5).coerceIn(0, bitmap.height - 1)
-        val sampleRight = (box.right + 20).coerceIn(0, bitmap.width - 1)
-        val sampleBottom = (box.bottom + (box.height() * 2.2).toInt()).coerceIn(0, bitmap.height - 1)
+        val sampleLeft = (box.left + 2).coerceIn(0, bitmap.width - 1)
+        val sampleTop = (box.top + 2).coerceIn(0, bitmap.height - 1)
+        val sampleRight = (box.right - 2).coerceIn(sampleLeft, bitmap.width - 1)
+        val sampleBottom = (box.bottom + (box.height() * 0.9).toInt()).coerceIn(sampleTop, bitmap.height - 1)
 
         var redCount = 0
         var blueCount = 0
@@ -513,6 +508,93 @@ object LocalCardOcrDetector {
             redCount > 6 -> CardSuit.HEARTS
             darkCount > 6 -> CardSuit.SPADES
             else -> CardSuit.SPADES
+        }
+    }
+
+    /**
+     * Cuenta asientos de jugadores activos en el perímetro de la mesa ovalada.
+     * Detecta nombres de jugadores, fichas, badges 'Ausente' y avatares para obtener el total de 2 a 9 jugadores.
+     */
+    private fun detectPlayerCount(visionText: Text, width: Int, height: Int): Int? {
+        val seatPoints = mutableListOf<PointF>()
+        val minSeatDistSquared = (width * 0.14f) * (width * 0.14f)
+
+        for (block in visionText.textBlocks) {
+            val box = block.boundingBox ?: continue
+            val cx = box.centerX().toFloat()
+            val cy = box.centerY().toFloat()
+
+            // Descartar el centro de la mesa (zona comunitaria y pozo)
+            val isPerimeter = cy < height * 0.32f || cy > height * 0.65f || cx < width * 0.22f || cx > width * 0.78f
+            if (!isPerimeter) continue
+
+            val text = block.text.replace("\n", " ").trim()
+            val upper = text.uppercase()
+
+            val isPlayerBlock = upper.contains("AUSENTE") ||
+                    upper.contains("AWAY") ||
+                    text.contains(Regex("""\b[0-9]{1,3}(?:[.,][0-9]{3})+\b""")) ||
+                    text.contains(Regex("""\b[0-9]+(?:\.[0-9]+)?\s*(?:BB|K|M)\b""", RegexOption.IGNORE_CASE)) ||
+                    (upper.length in 3..15 && !upper.contains("BOTE") && !upper.contains("POT") && !upper.contains("HOLDEM") && !upper.contains("MESA"))
+
+            if (isPlayerBlock) {
+                val alreadyClustered = seatPoints.any { p ->
+                    val dx = p.x - cx
+                    val dy = p.y - cy
+                    (dx * dx + dy * dy) < minSeatDistSquared
+                }
+                if (!alreadyClustered) {
+                    seatPoints.add(PointF(cx, cy))
+                }
+            }
+        }
+
+        return if (seatPoints.size in 2..9) seatPoints.size else null
+    }
+
+    /**
+     * Extrae números numéricos de póker admitiendo separadores de miles con coma o punto
+     * (ej: '1,520' -> 1520.0, '1.022.984' -> 1022984.0, '1022 BB' -> 1022.0).
+     */
+    fun parsePokerNumericString(raw: String): Double? {
+        val clean = raw.replace("$", "").replace("€", "").replace("£", "").trim()
+        if (clean.isBlank()) return null
+
+        val hasComma = clean.contains(',')
+        val hasDot = clean.contains('.')
+
+        return try {
+            if (hasComma && hasDot) {
+                val lastComma = clean.lastIndexOf(',')
+                val lastDot = clean.lastIndexOf('.')
+                if (lastComma > lastDot) {
+                    clean.replace(".", "").replace(",", ".").toDoubleOrNull()
+                } else {
+                    clean.replace(",", "").toDoubleOrNull()
+                }
+            } else if (hasDot) {
+                val parts = clean.split('.')
+                if (parts.size > 2) {
+                    clean.replace(".", "").toDoubleOrNull()
+                } else if (parts.size == 2 && parts[1].length == 3) {
+                    clean.replace(".", "").toDoubleOrNull()
+                } else {
+                    clean.toDoubleOrNull()
+                }
+            } else if (hasComma) {
+                val parts = clean.split(',')
+                if (parts.size > 2) {
+                    clean.replace(",", "").toDoubleOrNull()
+                } else if (parts.size == 2 && parts[1].length == 3) {
+                    clean.replace(",", "").toDoubleOrNull()
+                } else {
+                    clean.replace(",", ".").toDoubleOrNull()
+                }
+            } else {
+                clean.toDoubleOrNull()
+            }
+        } catch (e: Exception) {
+            null
         }
     }
 

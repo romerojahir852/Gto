@@ -1592,7 +1592,7 @@ fun ApiKeySettingsCard(
                         modifier = Modifier.size(20.dp)
                     )
                     Text(
-                        text = if (isConfigured) "Gemini Serie 3 Flash Activo" else "OCR Local ML Kit Activo",
+                        text = if (isConfigured) "Gemini Serie 3 Flash (3.8 / 3.7 / 3.6) Activo" else "OCR Local ML Kit Activo",
                         fontSize = 15.sp,
                         fontWeight = FontWeight.Bold,
                         color = AppTheme.colors.textPrimary
@@ -1761,7 +1761,7 @@ fun TopApiKeyStatusBanner(
                 )
                 Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     Text(
-                        text = if (isConfigured) "Gemini Serie 3 Flash Activo" else "Modo OCR Local (Sin API Key)",
+                        text = if (isConfigured) "Gemini Serie 3 Flash (3.8 / 3.7 / 3.6) Activo" else "Modo OCR Local (Sin API Key)",
                         color = AppTheme.colors.textPrimary,
                         fontSize = 13.sp,
                         fontWeight = FontWeight.Bold
