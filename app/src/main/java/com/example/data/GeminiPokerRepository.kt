@@ -37,24 +37,22 @@ class GeminiPokerRepository {
 
     companion object {
         private const val TAG = "GeminiPokerRepo"
-        // 5000ms cap: tiempo suficiente para upload de frame en redes móviles y respuesta rápida
-        private const val TIMEOUT_MS = 5000L
-        private const val MAX_IMAGE_DIMENSION = 720
-        private const val JPEG_COMPRESSION_QUALITY = 85
+        // 10000ms: tiempo óptimo para upload en alta resolución 1280p y respuesta visual instantánea
+        private const val TIMEOUT_MS = 10000L
+        private const val MAX_IMAGE_DIMENSION = 1280
+        private const val JPEG_COMPRESSION_QUALITY = 90
         private const val ENDPOINT_BASE = "https://generativelanguage.googleapis.com/v1beta/models"
     }
 
     /**
-     * Cascada de modelos Gemini de producción.
-     * Prioriza gemini-2.5-flash y gemini-2.0-flash para visión multimodal instantánea.
+     * Cascada oficial de modelos Google Gemini multimodal vision.
+     * Prioriza gemini-2.0-flash (última generación GA de Google AI Studio) para máxima precisión espacial.
      */
     private val candidateModels = listOf(
-        "gemini-2.5-flash",
         "gemini-2.0-flash",
-        "gemini-1.5-flash",
-        "gemini-2.5-flash-lite",
         "gemini-2.0-flash-lite",
-        "gemini-3.7-flash"
+        "gemini-1.5-flash",
+        "gemini-1.5-pro"
     )
 
     /**
@@ -105,19 +103,46 @@ class GeminiPokerRepository {
     }
 
     /**
-     * Prompt Espacial para Gemini Vision con detección integral de la partida.
+     * Prompt Quirúrgico de Alta Precisión para Mesas de Póker Móviles (GGPoker, BC Poker, PokerStars, etc.).
      */
     fun buildSurgicalPrompt(state: HandState): String {
-        return "Contexto de partida: Fase[${state.fase}], Jugadores[${state.jugadores}], MiPosicion[${state.posicion}], Dealer[${state.dealerPosition}], Bote[${state.bote}]. " +
-                "Eres un escáner y analizador visual de mesa de póker Texas Hold'em profesional de alta velocidad. " +
-                "Analiza la captura de pantalla: " +
-                "1. CARTAS HERO (TUS CARTAS): Localiza las 2 cartas boca arriba del jugador principal (Hero) en la parte inferior de la mesa (o junto al nombre/avatar del usuario). Escríbelas con Valor y Palo (ej: '10d 4h', 'As Kd', 'Jh Th'). Palos: s=picas ♠, h=corazones ♥, d=diamantes ♦, c=tréboles ♣. " +
-                "2. MESA (COMUNITARIAS): Las cartas comunitarias abiertas en el centro de la mesa (Flop 3, Turn 4, River 5). Si no hay, déjalo vacío o '-'. " +
-                "3. JUGADORES Y DEALER: Cuenta los jugadores activos sentados en la mesa (2 a 9) y localiza la ficha 'D' del Dealer. Identifica tu posición: BTN, SB, BB, UTG, MP, CO. " +
-                "4. BOTE: Monto numérico del bote central si está visible. " +
-                "5. DECISIÓN GTO: Mejor jugada GTO (FOLD, CHECK, CALL, BET, RAISE, ALL_IN) con tamaño o porcentaje. " +
-                "Responde ÚNICAMENTE un objeto JSON estricto con estas claves: " +
-                "{\"cartas\": \"10d 4h\", \"mesa\": \"\", \"jugadores\": 6, \"dealer\": \"BTN\", \"miPosicion\": \"BB\", \"bote\": \"\", \"fase\": \"Preflop\", \"outs\": \"0 Outs\", \"win\": \"35%\", \"gto\": \"FOLD\"}"
+        return """
+        You are a World-Class Texas Hold'em Computer Vision Analyzer with millimetric spatial precision.
+        Context: Phase[${state.fase}], Players[${state.jugadores}], MyPos[${state.posicion}], Dealer[${state.dealerPosition}].
+
+        Carefully scan the image and identify:
+        1. HERO HOLE CARDS (Tus 2 cartas propias):
+           - Located near the bottom of the table (often bottom-center or bottom-left next to the user's avatar, chips, and name, e.g. Jr699).
+           - The Hero's 2 cards are face-up with clearly visible rank and suit (e.g. '10h 4h' or 'As Kd').
+           - Note: Check if there is helper text underneath Hero's avatar (e.g. 'trío de Ks', 'par de ases', 'doble pareja', 'escalera') to confirm the cards!
+        2. COMMUNITY CARDS (Mesa / Flop / Turn / River):
+           - Located horizontally in the center of the table (Flop = 3 cards, Turn = 4 cards, River = 5 cards).
+           - Example: three kings on board is 'Kh Kc Ks'.
+           - If Preflop and no community cards are dealt yet, return "".
+        3. POT:
+           - Total pot amount in the center (e.g. '2596' or '1600').
+        4. DEALER BUTTON:
+           - Find the player seat with the yellow 'D' dealer button.
+        5. ACTIVE SEATED PLAYERS:
+           - Count total players active in the hand (2 to 9).
+        6. GTO ACTION & EQUITY:
+           - Best action (FOLD, CHECK, CALL, BET, RAISE, ALL-IN) and Win Equity %.
+
+        Format: Output STRICT JSON ONLY with these exact keys:
+        {
+          "cartas": "10h 4h",
+          "mesa": "Kh Kc Ks",
+          "fase": "Flop",
+          "bote": "2596",
+          "jugadores": 6,
+          "dealer": "BTN",
+          "miPosicion": "SB",
+          "outs": "Trío de Reyes",
+          "win": "72%",
+          "gto": "CALL 1x"
+        }
+        Suits: h=hearts ♥, d=diamonds ♦, c=clubs ♣, s=spades ♠.
+        """.trimIndent()
     }
 
     private data class GeminiCallResult(
@@ -152,11 +177,11 @@ class GeminiPokerRepository {
                 if (!responseText.isNullOrBlank()) {
                     Log.d("GEMINI_DEBUG", "RAW AI RESPONSE (${callResult.modelUsed}): $responseText")
                     val parsedState = parseSurgicalResponse(responseText, currentState, latency)
-                    if (parsedState.cartasPropias.isNotEmpty()) {
+                    if (parsedState.cartasPropias.isNotEmpty() || parsedState.cartasComunitarias.isNotEmpty()) {
                         PokerGameStateManager.updateIncremental(
                             fase = parsedState.fase,
-                            cartasPropias = parsedState.cartasPropias,
-                            cartasComunitarias = parsedState.cartasComunitarias,
+                            cartasPropias = if (parsedState.cartasPropias.isNotEmpty()) parsedState.cartasPropias else null,
+                            cartasComunitarias = if (parsedState.cartasComunitarias.isNotEmpty()) parsedState.cartasComunitarias else null,
                             bote = parsedState.bote,
                             jugadores = parsedState.jugadores,
                             posicion = parsedState.posicion,
@@ -170,7 +195,7 @@ class GeminiPokerRepository {
                             rawText = responseText,
                             latencyMs = latency,
                             isSimulation = false,
-                            statusMessage = "Lectura IA exitosa (${latency}ms · ${callResult.modelUsed})"
+                            statusMessage = "IA Gemini 2.0 Flash: ${parsedState.cartasPropias.joinToString(" "){it.displayString}} | Mesa: ${parsedState.cartasComunitarias.joinToString(" "){it.displayString}} · ${latency}ms"
                         )
                         return@withContext Result.success(parsedState)
                     }
@@ -424,19 +449,27 @@ class GeminiPokerRepository {
 
             val jsonObj = json.parseToJsonElement(jsonPayload).jsonObject
             
-            jsonObj["cartas"]?.jsonPrimitive?.contentOrNull?.let { value ->
-                val parsed = PokerCard.parseMultiple(value)
+            val cartasRaw = when (val elem = jsonObj["cartas"]) {
+                is JsonPrimitive -> elem.contentOrNull ?: ""
+                is JsonArray -> elem.joinToString(" ") { (it as? JsonPrimitive)?.contentOrNull ?: "" }
+                else -> ""
+            }
+            if (cartasRaw.isNotBlank()) {
+                val parsed = PokerCard.parseMultiple(cartasRaw)
                 if (parsed.isNotEmpty()) {
                     holeCards = parsed.take(2)
                     if (parsed.size > 2) communityCards = parsed.drop(2)
                 }
             }
-            
-            jsonObj["mesa"]?.jsonPrimitive?.contentOrNull?.let { value ->
-                if (value.isNotBlank() && value != "-" && !value.equals("ninguna", ignoreCase = true)) {
-                    val parsed = PokerCard.parseMultiple(value)
-                    if (parsed.isNotEmpty()) communityCards = parsed
-                }
+
+            val mesaRaw = when (val elem = jsonObj["mesa"]) {
+                is JsonPrimitive -> elem.contentOrNull ?: ""
+                is JsonArray -> elem.joinToString(" ") { (it as? JsonPrimitive)?.contentOrNull ?: "" }
+                else -> ""
+            }
+            if (mesaRaw.isNotBlank() && mesaRaw != "-" && !mesaRaw.equals("ninguna", ignoreCase = true)) {
+                val parsed = PokerCard.parseMultiple(mesaRaw)
+                if (parsed.isNotEmpty()) communityCards = parsed
             }
             
             jsonObj["jugadores"]?.jsonPrimitive?.let { prim ->
@@ -455,7 +488,7 @@ class GeminiPokerRepository {
             jsonObj["bote"]?.jsonPrimitive?.contentOrNull?.let { value ->
                 val cleanBote = value.replace(Regex("[^0-9.]"), "").toDoubleOrNull()
                 if (cleanBote != null && cleanBote > 0.0) {
-                    GTOStateManager.setBote(cleanBote)
+                    GTOStateManager.setPotSize(cleanBote)
                 }
             }
             

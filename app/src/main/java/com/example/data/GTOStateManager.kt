@@ -127,6 +127,10 @@ object GTOStateManager {
         }
     }
 
+    fun setBote(bote: Double) {
+        setPotSize(bote)
+    }
+
     /**
      * Sincroniza las variables de memoria local con HandState en PokerGameStateManager
      */
