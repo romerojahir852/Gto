@@ -1533,7 +1533,7 @@ fun ApiKeySettingsCard(
                         modifier = Modifier.size(20.dp)
                     )
                     Text(
-                        text = if (isConfigured) "Gemini AI (2.5 / 2.0 Flash) Activo" else "OCR Local ML Kit Activo",
+                        text = if (isConfigured) "Gemini AI (3.8 / 2.5 Flash) Activo" else "OCR Local ML Kit Activo",
                         fontSize = 15.sp,
                         fontWeight = FontWeight.Bold,
                         color = Ink
@@ -1560,7 +1560,7 @@ fun ApiKeySettingsCard(
 
             Text(
                 text = if (isConfigured) {
-                    "Tu clave API está configurada (${ApiKeyManager.getMaskedKey(context)}). La visión multimodal de Gemini (2.5 Flash / 2.0 Flash) analizará las capturas de pantalla con máxima fidelidad."
+                    "Tu clave API está configurada (${ApiKeyManager.getMaskedKey(context)}). La visión multimodal de Gemini (3.8 Flash / 2.5 Flash) analizará las capturas de pantalla con máxima fidelidad."
                 } else {
                     "Sin API Key configurada. El motor OCR Local integrado (ML Kit) lee las cartas en el dispositivo sin internet. Para activar Gemini AI, ingresa tu clave gratuita de Google AI Studio."
                 },
@@ -1696,7 +1696,7 @@ fun TopApiKeyStatusBanner(
                 )
                 Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     Text(
-                        text = if (isConfigured) "Gemini AI (2.5 / 2.0 Flash) Activo" else "Modo OCR Local (Sin API Key)",
+                        text = if (isConfigured) "Gemini AI (3.8 / 2.5 Flash) Activo" else "Modo OCR Local (Sin API Key)",
                         color = if (isConfigured) Color(0xFF34D399) else Color(0xFFFBBF24),
                         fontSize = 13.sp,
                         fontWeight = FontWeight.Bold
@@ -1783,7 +1783,7 @@ fun ApiKeyConfigDialog(
                 }
 
                 Text(
-                    text = "Para activar la visión multimodal de Gemini (2.5 Flash / 2.0 Flash), ingresa tu clave gratuita de Google AI Studio. Si no tienes una, la app usará automáticamente el motor OCR Local de ML Kit.",
+                    text = "Para activar la visión multimodal de Gemini (3.8 Flash / 2.5 Flash), ingresa tu clave gratuita de Google AI Studio. Si no tienes una, la app usará automáticamente el motor OCR Local de ML Kit.",
                     color = Color(0xFF94A3B8),
                     fontSize = 12.sp,
                     lineHeight = 16.sp

@@ -46,10 +46,12 @@ class GeminiPokerRepository {
 
     /**
      * Cascada oficial de modelos Google Gemini multimodal vision.
-     * Prioriza Gemini 2.5 Flash (la última generación de Google AI Studio con razonamiento espacial)
-     * y enlaza fluidamente con 2.5 Flash-Lite, 2.0 Flash y 1.5 Flash.
+     * Prioriza Gemini 3.8 Flash / flash (la última generación de Google AI Studio con razonamiento espacial)
+     * y enlaza fluidamente con 2.5 Flash, 2.0 Flash y 1.5 Flash.
      */
     private val candidateModels = listOf(
+        "gemini-3.8-flash",
+        "flash",
         "gemini-2.5-flash",
         "gemini-2.5-flash-lite",
         "gemini-2.0-flash",
