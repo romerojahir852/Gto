@@ -198,24 +198,44 @@ class FloatingOverlayManager(
     }
 
     private suspend fun analizarPantallaConOcultamiento() {
-        // 1. Hiding UI: Pasar la UI flotante a INVISIBLE y alpha = 0f
+        // 1. Hiding UI: Pasar la UI flotante y su ventana en WindowManager a alpha = 0f e INVISIBLE
         withContext(Dispatchers.Main) {
+            val view = composeView
+            val params = layoutParams
+            if (view != null && params != null && view.isAttachedToWindow) {
+                try {
+                    params.alpha = 0f
+                    windowManager.updateViewLayout(view, params)
+                } catch (e: Exception) {
+                    Log.w(TAG, "No se pudo actualizar alpha a 0f en WindowManager", e)
+                }
+            }
             composeView?.visibility = View.INVISIBLE
             composeView?.alpha = 0f
         }
 
-        // 2. Delay Estratégico: 150ms para garantizar que la pantalla esté 100% limpia en el render
-        delay(150L)
+        // 2. Delay Estratégico mínimo (100ms) para garantizar render 100% limpio en MediaProjection
+        delay(100L)
 
-        // 3. Captura del frame nativo desde MediaProjection
+        // 3. Captura del frame nativo desde MediaProjection sin interferencia del botón flotante
         val rawBitmap = withContext(Dispatchers.IO) {
             frameProvider?.invoke()
         }
 
         // 4. Restaurar UI: Devolver inmediatamente a VISIBLE mostrando "Calculando..."
         withContext(Dispatchers.Main) {
-            composeView?.alpha = 1f
             composeView?.visibility = View.VISIBLE
+            composeView?.alpha = 1f
+            val view = composeView
+            val params = layoutParams
+            if (view != null && params != null && view.isAttachedToWindow) {
+                try {
+                    params.alpha = 1f
+                    windowManager.updateViewLayout(view, params)
+                } catch (e: Exception) {
+                    Log.w(TAG, "No se pudo restaurar alpha a 1f en WindowManager", e)
+                }
+            }
             PokerGameStateManager.setExpanded(true)
             PokerGameStateManager.setLoading(true)
             PokerGameStateManager.updateStatus("Calculando...")

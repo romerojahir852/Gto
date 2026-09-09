@@ -207,7 +207,12 @@ data class HandState(
     val displayBote: String
         get() = when (bettingUnit) {
             BettingUnit.BB -> {
-                val formatted = if (bote % 1.0 == 0.0) bote.toInt().toString() else bote.toString()
+                val bbValue = if (bigBlindSize > 0.0) bote / bigBlindSize else bote
+                val formatted = if (bbValue % 1.0 == 0.0) {
+                    bbValue.toInt().toString()
+                } else {
+                    String.format(java.util.Locale.US, "%.1f", bbValue)
+                }
                 "$formatted BB"
             }
             BettingUnit.CHIPS -> {
@@ -219,7 +224,12 @@ data class HandState(
     val displayApuestaRival: String
         get() = when (bettingUnit) {
             BettingUnit.BB -> {
-                val formatted = if (apuestaRival % 1.0 == 0.0) apuestaRival.toInt().toString() else apuestaRival.toString()
+                val bbValue = if (bigBlindSize > 0.0) apuestaRival / bigBlindSize else apuestaRival
+                val formatted = if (bbValue % 1.0 == 0.0) {
+                    bbValue.toInt().toString()
+                } else {
+                    String.format(java.util.Locale.US, "%.1f", bbValue)
+                }
                 "$formatted BB"
             }
             BettingUnit.CHIPS -> {
@@ -367,6 +377,7 @@ object PokerGameStateManager {
         isSimulation: Boolean? = null,
         drawProjects: List<PokerDraw>? = null,
         bettingUnit: BettingUnit? = null,
+        bigBlindSize: Double? = null,
         jugadores: Int? = null,
         posicion: String? = null,
         dealerPosition: String? = null,
@@ -390,6 +401,7 @@ object PokerGameStateManager {
                 isSimulation = isSimulation ?: current.isSimulation,
                 drawProjects = drawProjects ?: current.drawProjects,
                 bettingUnit = bettingUnit ?: current.bettingUnit,
+                bigBlindSize = bigBlindSize ?: current.bigBlindSize,
                 jugadores = jugadores ?: current.jugadores,
                 posicion = posicion ?: current.posicion,
                 dealerPosition = dealerPosition ?: current.dealerPosition,

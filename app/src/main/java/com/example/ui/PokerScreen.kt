@@ -1560,9 +1560,9 @@ fun ApiKeySettingsCard(
 
             Text(
                 text = if (isConfigured) {
-                    "Tu clave API está configurada (${ApiKeyManager.getMaskedKey(context)}). La visión multimodal de Gemini Serie 3 Flash (3.8 / 3.7 / 3.6) analizará las capturas con visión multirresolución de alta precisión."
+                    "Tu clave API está configurada (${ApiKeyManager.getMaskedKey(context)}). La visión multimodal de Gemini Serie 3 Flash (3.8 / 3.7) analizará las capturas con visión multirresolución de alta precisión."
                 } else {
-                    "Sin API Key configurada. El motor OCR Local integrado (ML Kit) lee las cartas en el dispositivo sin internet. Para activar Gemini AI, ingresa tu clave gratuita de Google AI Studio."
+                    "Sin API Key configurada. El motor OCR Local integrado (ML Kit) lee las cartas en el dispositivo sin internet. Para activar Gemini AI (3.8 / 3.7), ingresa tu clave gratuita de Google AI Studio."
                 },
                 fontSize = 12.sp,
                 color = Ink2,
@@ -1783,7 +1783,7 @@ fun ApiKeyConfigDialog(
                 }
 
                 Text(
-                    text = "Para activar la visión multimodal de Gemini Serie 3 Flash (3.8 / 3.7 / 3.6), ingresa tu clave gratuita de Google AI Studio. Si no tienes una, la app usará automáticamente el motor OCR Local de ML Kit.",
+                    text = "Para activar la visión multimodal de Gemini Serie 3 Flash (3.8 / 3.7), ingresa tu clave gratuita de Google AI Studio. Si no tienes una, la app usará automáticamente el motor OCR Local de ML Kit.",
                     color = Color(0xFF94A3B8),
                     fontSize = 12.sp,
                     lineHeight = 16.sp

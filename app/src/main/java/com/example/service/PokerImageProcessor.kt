@@ -33,8 +33,19 @@ object PokerImageProcessor {
                 return parts
             }
 
-            // 1. Vista Macro: Mesa Completa (Escalada a 1080p máximo para visión global)
-            val macroBitmap = enhanceContrast(source, contrast = 1.15f, brightness = 5f)
+            // 1. Vista Macro: Mesa Completa (Escalada a 960p máximo para visión global ultrarrápida)
+            val maxMacroDim = 960
+            val maxSourceDim = maxOf(width, height)
+            val scaledMacro = if (maxSourceDim > maxMacroDim) {
+                val scale = maxMacroDim.toFloat() / maxSourceDim.toFloat()
+                val targetW = (width * scale).toInt().coerceAtLeast(1)
+                val targetH = (height * scale).toInt().coerceAtLeast(1)
+                Bitmap.createScaledBitmap(source, targetW, targetH, true)
+            } else {
+                source
+            }
+            val macroBitmap = enhanceContrast(scaledMacro, contrast = 1.15f, brightness = 5f)
+            if (scaledMacro != source && scaledMacro != macroBitmap) scaledMacro.recycle()
             parts.add(macroBitmap)
 
             // 2. Micro-Zoom Cartas Comunitarias (Mesa / Flop / Turn / River)

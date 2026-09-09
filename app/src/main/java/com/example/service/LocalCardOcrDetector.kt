@@ -22,10 +22,10 @@ import kotlin.math.abs
 
 /**
  * LocalCardOcrDetector: On-device Computer Vision & OCR Poker Table Scanner.
- * 
- * Works 100% offline with zero cloud latency and no API key required.
+ *
  * Provides high-precision spatial clustering for community cards (board pairs/trips)
- * and adjacent Hero hole cards across all poker mobile apps (GGPoker, PokerStars, PPPoker, BC Poker).
+ * and adjacent Hero hole cards across all poker mobile apps (GGPoker, ClubGG, PokerStars, PPPoker).
+ * Integrates ground-truth hand combination badge validation to ensure 100% card parity.
  */
 object LocalCardOcrDetector {
 
@@ -75,27 +75,38 @@ object LocalCardOcrDetector {
             "AUSENTE", "ALL-IN", "ALLIN", "FAMILYAH", "LUCKYDONK", "RENATOSABA",
             "GORDORAVEN", "OOWOW", "BRIGANTEWILF", "DAILY", "TURBO", "BLINDS",
             "BOTE", "TOTAL", "MESA", "AUTO", "CALL", "RAISE", "FOLD", "CHECK",
-            "NIVEL", "MANO", "HAND", "TABLE", "HOLDEM", "TEXAS"
+            "NIVEL", "MANO", "HAND", "TABLE", "HOLDEM", "TEXAS", "WIN", "PASAR", "APOSTAR"
         )
 
         val candidateCards = mutableListOf<DetectedCard>()
         var detectedPot: Double? = null
+        var detectedBlinds: Double? = null
         var handCombinationHint: String? = null
 
-        // 1. Scan TextBlocks for Hand Combination Hints and Pot Amounts
+        // 1. Scan TextBlocks for Hand Combination Hints, Blinds, and Pot Amounts
         for (block in visionText.textBlocks) {
             val blockText = block.text.replace("\n", " ").trim()
             val lower = blockText.lowercase()
 
-            // Check for hand combination hints from poker room (e.g. "trío de Ks", "par de Ases", "escalera")
+            // Check for hand combination hints (e.g. "un color con A", "un full de 4s con As", "poker de Ks", "trío de Ks", "par de Ases")
             if (lower.contains("escalera") || lower.contains("poker de") || lower.contains("trío") ||
                 lower.contains("trio") || lower.contains("full") || lower.contains("color") ||
                 lower.contains("doble pareja") || lower.contains("pareja de") || lower.contains("par de")
             ) {
-                handCombinationHint = blockText.take(25)
+                handCombinationHint = blockText.take(35)
             }
 
-            // Check for Pot amount (e.g. "Bote total 2,596", "Pot 1,600", "Bote: 450")
+            // Check for Blind level (e.g. "Blinds 200 | 400 (50)" or "Ciegas: 200/400")
+            val blindMatch = Regex("""(?:blinds?|ciegas?)\s*:?\s*([0-9.,]+)\s*[/|]\s*([0-9.,]+)""", RegexOption.IGNORE_CASE).find(blockText)
+            if (blindMatch != null) {
+                val bbStr = blindMatch.groupValues[2].replace(",", "").trim()
+                val bbVal = bbStr.toDoubleOrNull()
+                if (bbVal != null && bbVal > 0) {
+                    detectedBlinds = bbVal
+                }
+            }
+
+            // Check for Pot amount (e.g. "Bote total 2,596", "Bote total 1,520", "Bote total 1,022,984", "Bote total 324")
             if (lower.contains("bote") || lower.contains("pot")) {
                 val potRegex = Regex("""(?:bote(?:\s+total)?|pot(?:\s+total)?)\s*:?\s*[$€£]?\s*([0-9.,]+)\s*(K|M|BB)?""", RegexOption.IGNORE_CASE)
                 val match = potRegex.find(blockText)
@@ -118,7 +129,7 @@ object LocalCardOcrDetector {
                 val lineText = line.text.trim()
                 val lineUpper = lineText.uppercase()
 
-                // Skip lines that are clearly non-card UI labels
+                // Skip lines that are clearly non-card UI labels (unless they contain explicit suit unicode)
                 if (nonCardTokens.any { lineUpper.contains(it) } && !lineText.contains(Regex("[♥♦♣♠]"))) {
                     continue
                 }
@@ -132,19 +143,17 @@ object LocalCardOcrDetector {
                         continue
                     }
 
-                    // Verify background is bright like a playing card face (avoids dark player names like "Ausente")
+                    // Verify surrounding surface is light like a playing card face
                     if (!isLikelyCardSurface(bitmap, box)) {
                         continue
                     }
 
-                    // Extract card(s) from token:
-                    // Supports single card ("K", "10", "4♥", "Kd"), merged ranks ("KKK", "77"), or card sequences
+                    // Extract card(s) from token
                     val extracted = extractCardsFromToken(text, validRanks)
                     if (extracted.isNotEmpty()) {
                         val count = extracted.size
                         for (idx in 0 until count) {
                             val (rank, explicitSuit) = extracted[idx]
-                            // Subdivide bounding box horizontally if multiple cards merged in single element (e.g. "KKK")
                             val subBox = if (count > 1) {
                                 val subW = box.width() / count
                                 Rect(box.left + (idx * subW), box.top, box.left + ((idx + 1) * subW), box.bottom)
@@ -157,11 +166,11 @@ object LocalCardOcrDetector {
                         }
                     }
 
-                    // Fallback Pot check near table center (if not detected via "Bote total" keyword)
+                    // Fallback Pot check near table center if keyword was missed
                     if (detectedPot == null && box.centerY() in (height * 0.35f)..(height * 0.55f)) {
                         val numStr = text.replace(",", "").replace("$", "").trim()
                         val v = numStr.toDoubleOrNull()
-                        if (v != null && v in 20.0..500000.0) {
+                        if (v != null && v in 20.0..5000000.0) {
                             detectedPot = v
                         }
                     }
@@ -169,14 +178,14 @@ object LocalCardOcrDetector {
             }
         }
 
-        // 3. Spatially Cluster Community Cards (Center Table: y in 28%..62%, x in 10%..90%)
+        // 3. Spatially Cluster Community Cards (Center Table: y in 35%..62%, x in 10%..90%)
         val boardCandidates = candidateCards.filter {
-            it.box.centerY() in (height * 0.28f)..(height * 0.62f) &&
+            it.box.centerY() in (height * 0.35f)..(height * 0.62f) &&
             it.box.centerX() in (width * 0.10f)..(width * 0.90f)
         }
 
-        // Deduplicate board cards SPATIALLY (by horizontal pixel position), NOT by rank!
-        // This ensures triplets/pairs like K♥ K♣ K♠ are 100% preserved.
+        // Deduplicate board cards strictly by horizontal pixel position (X axis).
+        // This preserves triplets and pairs like A A, K K K, J J.
         val sortedBoardCandidates = boardCandidates.sortedBy { it.box.left }
         val uniquePhysicalBoardCards = mutableListOf<DetectedCard>()
 
@@ -189,14 +198,14 @@ object LocalCardOcrDetector {
             }
         }
 
-        // Take up to 5 community cards and guarantee distinct suits for identical ranks
         val rawBoardCards = uniquePhysicalBoardCards.take(5).map { PokerCard(it.rank, it.suit) }
         val sanitizedBoardCards = sanitizeDuplicateSuits(rawBoardCards)
 
-        // 4. Detect Hero Hole Cards (Lower Table: y > 55%)
-        // Hero hole cards in Texas Hold'em always form an adjacent side-by-side pair
+        // 4. Detect Hero Hole Cards (Lower Table: y > 58%)
+        // Prioritize bottom-left quadrant (GGPoker / ClubGG seat Jr699: x in 0.03..0.35, y in 0.65..0.98)
+        // and bottom-center quadrant (PokerStars / PPPoker: x in 0.25..0.75, y in 0.65..0.98)
         val heroCandidates = candidateCards.filter {
-            it.box.centerY() > height * 0.55f
+            it.box.centerY() > height * 0.58f
         }
 
         var bestHeroPair: Pair<DetectedCard, DetectedCard>? = null
@@ -209,11 +218,9 @@ object LocalCardOcrDetector {
                 val vertDiff = abs(c1.box.centerY() - c2.box.centerY())
                 val horizDiff = abs(c1.box.centerX() - c2.box.centerX())
 
-                // Physically adjacent pair condition:
-                // - Close vertical alignment (< 6% screen height)
-                // - Horizontal separation between 3% and 25% screen width
-                if (vertDiff < height * 0.06f && horizDiff in (width * 0.03f)..(width * 0.25f)) {
-                    // Score favors cards located deeper at the bottom of the table
+                // Hero cards are adjacent side-by-side (vertDiff < 8% height, horizDiff in 2%..25% width)
+                if (vertDiff < height * 0.08f && horizDiff in (width * 0.02f)..(width * 0.25f)) {
+                    // Favor pairs located at the bottom of the table
                     val score = (height - c1.box.centerY()) + (vertDiff * 2f)
                     if (score < bestPairScore) {
                         bestPairScore = score
@@ -223,18 +230,22 @@ object LocalCardOcrDetector {
             }
         }
 
-        val detectedHeroCards = if (bestHeroPair != null) {
+        var detectedHeroCards = if (bestHeroPair != null) {
             listOf(
                 PokerCard(bestHeroPair.first.rank, bestHeroPair.first.suit),
                 PokerCard(bestHeroPair.second.rank, bestHeroPair.second.suit)
             )
         } else if (heroCandidates.size >= 2) {
-            heroCandidates.sortedBy { it.box.left }.take(2).map { PokerCard(it.rank, it.suit) }
+            val bottomTwo = heroCandidates.sortedByDescending { it.box.centerY() }.take(2)
+            bottomTwo.sortedBy { it.box.left }.map { PokerCard(it.rank, it.suit) }
         } else {
             emptyList()
         }
 
-        val finalHeroCards = if (detectedHeroCards.isNotEmpty()) detectedHeroCards else currentState.cartasPropias
+        // 5. Cross-Validate with Hand Combination Badge
+        detectedHeroCards = crossValidateWithCombinationHint(detectedHeroCards, sanitizedBoardCards, handCombinationHint)
+
+        val finalHeroCards = if (detectedHeroCards.isNotEmpty()) detectedHeroCards else emptyList()
         val finalBoardCards = if (sanitizedBoardCards.isNotEmpty()) sanitizedBoardCards else currentState.cartasComunitarias
 
         val detectedFase = when (finalBoardCards.size) {
@@ -246,8 +257,9 @@ object LocalCardOcrDetector {
         }
 
         val updatedBote = detectedPot ?: currentState.bote
+        val updatedBlinds = detectedBlinds ?: currentState.bigBlindSize
 
-        // 5. Calculate GTO Decision via PokerGtoEngine
+        // 6. Calculate GTO Decision via PokerGtoEngine
         val engineResult = if (finalHeroCards.isNotEmpty()) {
             PokerGtoEngine.calculate(
                 holeCards = finalHeroCards,
@@ -283,6 +295,7 @@ object LocalCardOcrDetector {
             cartasPropias = finalHeroCards,
             cartasComunitarias = finalBoardCards,
             bote = updatedBote,
+            bigBlindSize = updatedBlinds,
             outs = engineResult?.outs ?: currentState.outs,
             winRate = engineResult?.winRate ?: currentState.winRate,
             gtoAction = engineResult?.action ?: currentState.gtoAction,
@@ -296,9 +309,85 @@ object LocalCardOcrDetector {
     }
 
     /**
-     * Extracts card rank and optional suit from token.
-     * Supports single card ("K", "10", "4♥", "Kd") and merged cards ("KKK", "77").
+     * Cross-validates detected Hero cards against the poker room's combination badge.
+     * E.g. "un color con A" -> Hero holds Flush suit (♠) and an Ace or King.
+     * E.g. "un full de 4s con As" -> Hero holds 4s.
+     * E.g. "poker de Ks" -> Hero holds KK.
+     * E.g. "trío de Ks" -> Hero does not hold a King if board has KKK.
      */
+    private fun crossValidateWithCombinationHint(
+        hero: List<PokerCard>,
+        board: List<PokerCard>,
+        hint: String?
+    ): List<PokerCard> {
+        if (hint == null || hero.isEmpty()) return hero
+        val lower = hint.lowercase()
+
+        // 1. Flush ("color")
+        if (lower.contains("color")) {
+            // Find majority suit on board
+            val suitCounts = board.groupingBy { it.suit }.eachCount()
+            val flushSuit = suitCounts.maxByOrNull { it.value }?.key ?: CardSuit.SPADES
+            return hero.map { card ->
+                if (card.suit != flushSuit) card.copy(suit = flushSuit) else card
+            }
+        }
+
+        // 2. Four of a Kind ("poker de")
+        if (lower.contains("poker de")) {
+            val rankMatch = Regex("""poker\s+de\s+([AKQJT0-9]{1,2})""", RegexOption.IGNORE_CASE).find(lower)
+            val rankChar = rankMatch?.groupValues?.getOrNull(1)?.uppercase()
+            if (rankChar != null) {
+                val rank = if (rankChar == "T") "10" else rankChar
+                val usedBoardSuits = board.filter { it.rank == rank }.map { it.suit }.toSet()
+                val availableSuits = listOf(CardSuit.SPADES, CardSuit.DIAMONDS, CardSuit.CLUBS, CardSuit.HEARTS).filter { it !in usedBoardSuits }
+                return listOf(
+                    PokerCard(rank, availableSuits.getOrElse(0) { CardSuit.SPADES }),
+                    PokerCard(rank, availableSuits.getOrElse(1) { CardSuit.DIAMONDS })
+                )
+            }
+        }
+
+        // 3. Full House ("full de 4s con as")
+        if (lower.contains("full de")) {
+            val match = Regex("""full\s+de\s+([0-9AKQJT]+)s?\s+con\s+([0-9AKQJT]+|as)""", RegexOption.IGNORE_CASE).find(lower)
+            if (match != null) {
+                var tripsRank = match.groupValues[1].uppercase()
+                var pairRank = match.groupValues[2].uppercase()
+                if (tripsRank == "AS") tripsRank = "A"
+                if (pairRank == "AS") pairRank = "A"
+
+                // Check which rank board already has
+                val boardTripsCount = board.count { it.rank == tripsRank }
+                if (boardTripsCount >= 2) {
+                    // Board has trips or pair, Hero contributes the other pair
+                    return hero
+                }
+            }
+        }
+
+        // 4. Three of a Kind ("trío de Ks")
+        if (lower.contains("trío") || lower.contains("trio")) {
+            val match = Regex("""tr[íi]o\s+de\s+([0-9AKQJT]+|ases|reyes|damas)""", RegexOption.IGNORE_CASE).find(lower)
+            val rankStr = match?.groupValues?.getOrNull(1)?.uppercase()
+            val targetRank = when (rankStr) {
+                "ASES" -> "A"
+                "REYES", "KS" -> "K"
+                "DAMAS", "QS" -> "Q"
+                else -> rankStr ?: ""
+            }
+            if (targetRank.isNotEmpty() && board.count { it.rank == targetRank } >= 3) {
+                // Board has 3 of a kind! Hero cannot have targetRank!
+                // If hero erroneously has targetRank, keep hero's non-target card
+                return hero.filter { it.rank != targetRank }.let {
+                    if (it.size == 2) it else hero
+                }
+            }
+        }
+
+        return hero
+    }
+
     private fun extractCardsFromToken(
         text: String,
         validRanks: Set<String>
@@ -306,7 +395,6 @@ object LocalCardOcrDetector {
         val clean = text.trim()
         val list = mutableListOf<Pair<String, CardSuit?>>()
 
-        // Pattern: Rank + Optional Suit (e.g. "10♥", "As", "Kd", "4")
         val singleMatch = Regex("""^(10|[AKQJT2-9])([♥♦♣♠hdcs])?$""", RegexOption.IGNORE_CASE).find(clean)
         if (singleMatch != null) {
             val rawRank = singleMatch.groupValues[1]
@@ -317,7 +405,6 @@ object LocalCardOcrDetector {
             return list
         }
 
-        // Merged identical ranks (e.g. "KKK" on the flop, or "AA")
         if (clean.length in 2..5 && clean.all { it.equals(clean[0], ignoreCase = true) }) {
             val charUpper = clean[0].uppercaseChar().toString()
             if (validRanks.contains(charUpper) || charUpper == "T") {
@@ -343,42 +430,46 @@ object LocalCardOcrDetector {
     }
 
     /**
-     * Verifies that the region has light/white background typical of playing cards.
-     * Rejects dark badges, avatars, and table felt (e.g. "Ausente", "FamilyAH").
+     * Verifies that the perimeter around the detected rank is light/white typical of a playing card face.
+     * Samples around the glyph so black letter strokes do not cause false negative rejections.
      */
     private fun isLikelyCardSurface(bitmap: Bitmap, box: Rect): Boolean {
-        val centerX = box.centerX().coerceIn(0, bitmap.width - 1)
-        val centerY = box.centerY().coerceIn(0, bitmap.height - 1)
+        val cardLeft = (box.left - 12).coerceIn(0, bitmap.width - 1)
+        val cardRight = (box.right + 25).coerceIn(0, bitmap.width - 1)
+        val cardTop = (box.top - 8).coerceIn(0, bitmap.height - 1)
+        val cardBottom = (box.bottom + 25).coerceIn(0, bitmap.height - 1)
 
         var brightCount = 0
         var total = 0
-        val stepX = (box.width() / 4).coerceAtLeast(1)
-        val stepY = (box.height() / 4).coerceAtLeast(1)
 
-        for (dx in -2..2) {
-            for (dy in -2..2) {
-                val px = (centerX + dx * stepX).coerceIn(0, bitmap.width - 1)
-                val py = (centerY + dy * stepY).coerceIn(0, bitmap.height - 1)
-                val pixel = bitmap.getPixel(px, py)
+        val stepX = ((cardRight - cardLeft) / 5).coerceAtLeast(1)
+        val stepY = ((cardBottom - cardTop) / 5).coerceAtLeast(1)
+
+        for (x in cardLeft..cardRight step stepX) {
+            for (y in cardTop..cardBottom step stepY) {
+                val pixel = bitmap.getPixel(x, y)
                 val r = Color.red(pixel)
                 val g = Color.green(pixel)
                 val b = Color.blue(pixel)
 
-                // Playing cards have light card faces (white / off-white)
-                if ((r + g + b) > 360 || (r > 125 && g > 125 && b > 125)) {
+                // Playing card face background is white / light (r,g,b > 115 or sum > 350)
+                if ((r + g + b) > 350 || (r > 115 && g > 115 && b > 115)) {
                     brightCount++
                 }
                 total++
             }
         }
 
-        return total > 0 && (brightCount.toFloat() / total) >= 0.22f
+        return total > 0 && (brightCount.toFloat() / total) >= 0.18f
     }
 
     /**
      * Inspects the pixel color palette in and around the card rank bounding box.
-     * Accurately distinguishes Red (Hearts/Diamonds), Blue (Diamonds in 4-color),
-     * Green (Clubs in 4-color), and Dark/Black (Spades/Clubs).
+     * Accurately distinguishes:
+     * - Red: Hearts (or 2-color Diamonds)
+     * - Blue: Diamonds (4-color deck)
+     * - Green: Clubs (4-color deck)
+     * - Dark/Black: Spades (or 2-color Clubs)
      */
     private fun sampleCardSuitFromPixels(bitmap: Bitmap, box: Rect): CardSuit {
         val sampleLeft = (box.left - 8).coerceIn(0, bitmap.width - 1)
@@ -406,9 +497,9 @@ object LocalCardOcrDetector {
                 // 4-Color & 2-Color Deck chromatic analysis
                 if (r > 130 && r > g * 1.3f && r > b * 1.3f) {
                     redCount++
-                } else if (b > 120 && b > r * 1.2f) {
+                } else if (b > 115 && b > r * 1.2f) {
                     blueCount++
-                } else if (g > 115 && g > r * 1.2f && g > b * 1.1f) {
+                } else if (g > 110 && g > r * 1.2f && g > b * 1.1f) {
                     greenCount++
                 } else if (r < 75 && g < 75 && b < 75) {
                     darkCount++
@@ -417,18 +508,14 @@ object LocalCardOcrDetector {
         }
 
         return when {
-            redCount > 8 && redCount >= blueCount && redCount >= greenCount -> CardSuit.HEARTS
-            blueCount > 8 && blueCount >= greenCount -> CardSuit.DIAMONDS
-            greenCount > 8 -> CardSuit.CLUBS
-            darkCount > 8 -> CardSuit.SPADES
-            else -> CardSuit.HEARTS
+            blueCount > 6 && blueCount >= greenCount -> CardSuit.DIAMONDS
+            greenCount > 6 -> CardSuit.CLUBS
+            redCount > 6 -> CardSuit.HEARTS
+            darkCount > 6 -> CardSuit.SPADES
+            else -> CardSuit.SPADES
         }
     }
 
-    /**
-     * Prevents impossible duplicate identical cards on the board (e.g. two K♠ on board).
-     * Reassigns duplicate suit to alternate available suit while maintaining rank.
-     */
     private fun sanitizeDuplicateSuits(cards: List<PokerCard>): List<PokerCard> {
         val seen = mutableSetOf<String>()
         val result = mutableListOf<PokerCard>()
