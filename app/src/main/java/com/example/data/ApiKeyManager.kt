@@ -10,11 +10,24 @@ object ApiKeyManager {
     @Volatile
     private var cachedApiKey: String? = null
 
+    @Volatile
+    private var appContext: Context? = null
+
+    fun init(context: Context) {
+        appContext = context.applicationContext
+        val prefs = appContext?.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val savedKey = prefs?.getString(KEY_API_KEY, null)?.trim()
+        if (!savedKey.isNullOrBlank()) {
+            cachedApiKey = savedKey
+        }
+    }
+
     fun getApiKey(context: Context? = null): String? {
         cachedApiKey?.let { if (it.isNotBlank()) return it }
 
-        if (context != null) {
-            val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val ctx = context ?: appContext
+        if (ctx != null) {
+            val prefs = ctx.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             val savedKey = prefs.getString(KEY_API_KEY, null)?.trim()
             if (!savedKey.isNullOrBlank()) {
                 cachedApiKey = savedKey
@@ -34,6 +47,7 @@ object ApiKeyManager {
     fun saveApiKey(context: Context, key: String) {
         val trimmed = key.trim()
         cachedApiKey = trimmed
+        appContext = context.applicationContext
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         prefs.edit().putString(KEY_API_KEY, trimmed).apply()
     }
@@ -57,6 +71,7 @@ object ApiKeyManager {
 
     fun clearApiKey(context: Context) {
         cachedApiKey = null
+        appContext = context.applicationContext
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         prefs.edit().remove(KEY_API_KEY).apply()
     }

@@ -48,22 +48,22 @@ object PokerImageProcessor {
             if (scaledMacro != source && scaledMacro != macroBitmap) scaledMacro.recycle()
             parts.add(macroBitmap)
 
-            // 2. Micro-Zoom Cartas Comunitarias (Mesa / Flop / Turn / River)
-            // x: 12% a 88% del ancho, y: 35% a 62% del alto
-            val boardLeft = (width * 0.12f).toInt().coerceIn(0, width - 1)
-            val boardTop = (height * 0.35f).toInt().coerceIn(0, height - 1)
-            val boardWidth = (width * 0.76f).toInt().coerceIn(10, width - boardLeft)
-            val boardHeight = (height * 0.27f).toInt().coerceIn(10, height - boardTop)
+            // 2. Micro-Zoom Cartas Comunitarias (Mesa / Flop / Turn / River: 5 cartas completas)
+            // x: 8% a 92% del ancho, y: 34% a 65% del alto
+            val boardLeft = (width * 0.08f).toInt().coerceIn(0, width - 1)
+            val boardTop = (height * 0.34f).toInt().coerceIn(0, height - 1)
+            val boardWidth = (width * 0.84f).toInt().coerceIn(10, width - boardLeft)
+            val boardHeight = (height * 0.30f).toInt().coerceIn(10, height - boardTop)
 
             val rawBoard = Bitmap.createBitmap(source, boardLeft, boardTop, boardWidth, boardHeight)
             val enhancedBoard = enhanceContrast(rawBoard, contrast = 1.25f, brightness = 8f)
             if (enhancedBoard != rawBoard) rawBoard.recycle()
             parts.add(enhancedBoard)
 
-            // 3. Micro-Zoom Cartas Hero (Mitad inferior completa para abarcar asientos centrales y laterales como Jr699)
-            // x: 0% a 100% del ancho, y: 60% a 95% del alto
+            // 3. Micro-Zoom Cartas Hero (Mitad inferior completa para abarcar asientos esquineros como Jr699 y centrales)
+            // x: 0% a 100% del ancho, y: 62% a 97% del alto
             val heroLeft = 0
-            val heroTop = (height * 0.60f).toInt().coerceIn(0, height - 1)
+            val heroTop = (height * 0.62f).toInt().coerceIn(0, height - 1)
             val heroWidth = width
             val heroHeight = (height * 0.35f).toInt().coerceIn(10, height - heroTop)
 

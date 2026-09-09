@@ -76,7 +76,10 @@ object LocalCardOcrDetector {
             "AUSENTE", "ALL-IN", "ALLIN", "FAMILYAH", "LUCKYDONK", "RENATOSABA",
             "GORDORAVEN", "OOWOW", "BRIGANTEWILF", "DAILY", "TURBO", "BLINDS",
             "BOTE", "TOTAL", "MESA", "AUTO", "CALL", "RAISE", "FOLD", "CHECK",
-            "NIVEL", "MANO", "HAND", "TABLE", "HOLDEM", "TEXAS", "WIN", "PASAR", "APOSTAR"
+            "NIVEL", "MANO", "HAND", "TABLE", "HOLDEM", "TEXAS", "WIN", "PASAR", "APOSTAR",
+            "GTO", "MIS", "CARTAS", "PROPIAS", "COMUNITARIAS", "EQUITY", "RATE", "OUTS", "PROYECTOS",
+            "DECISIÓN", "DECISION", "ÓPTIMA", "OPTIMA", "RE-ANALIZAR", "REANALIZAR",
+            "JUGADORES", "POS", "BTN", "SB", "BB", "UTG", "MP", "CO", "FICHAS", "OCR", "LOCAL", "GEMINI", "FLASH"
         )
 
         val candidateCards = mutableListOf<DetectedCard>()
@@ -315,17 +318,21 @@ object LocalCardOcrDetector {
         board: List<PokerCard>,
         hint: String?
     ): List<PokerCard> {
-        if (hint == null || hero.isEmpty()) return hero
+        if (hint == null) return sanitizeHeroCards(hero, board)
         val lower = hint.lowercase()
 
         // 1. Flush ("color")
         if (lower.contains("color")) {
-            // Find majority suit on board
             val suitCounts = board.groupingBy { it.suit }.eachCount()
             val flushSuit = suitCounts.maxByOrNull { it.value }?.key ?: CardSuit.SPADES
-            return hero.map { card ->
-                if (card.suit != flushSuit) card.copy(suit = flushSuit) else card
+            val updated = if (hero.isNotEmpty()) {
+                hero.map { card ->
+                    if (card.suit != flushSuit) card.copy(suit = flushSuit) else card
+                }
+            } else {
+                listOf(PokerCard("A", flushSuit), PokerCard("K", flushSuit))
             }
+            return sanitizeHeroCards(updated, board)
         }
 
         // 2. Four of a Kind ("poker de")
@@ -351,12 +358,29 @@ object LocalCardOcrDetector {
                 var pairRank = match.groupValues[2].uppercase()
                 if (tripsRank == "AS") tripsRank = "A"
                 if (pairRank == "AS") pairRank = "A"
+                if (tripsRank == "T") tripsRank = "10"
+                if (pairRank == "T") pairRank = "10"
 
-                // Check which rank board already has
                 val boardTripsCount = board.count { it.rank == tripsRank }
-                if (boardTripsCount >= 2) {
-                    // Board has trips or pair, Hero contributes the other pair
-                    return hero
+                val boardPairCount = board.count { it.rank == pairRank }
+
+                // Si la mesa tiene 1 carta de tripsRank y 2 de pairRank, Hero aporta las 2 restantes de tripsRank
+                if (boardTripsCount == 1 && boardPairCount >= 2) {
+                    val usedSuits = board.filter { it.rank == tripsRank }.map { it.suit }.toSet()
+                    val available = listOf(CardSuit.SPADES, CardSuit.DIAMONDS, CardSuit.CLUBS, CardSuit.HEARTS).filter { it !in usedSuits }
+                    return listOf(
+                        PokerCard(tripsRank, available.getOrElse(0) { CardSuit.SPADES }),
+                        PokerCard(tripsRank, available.getOrElse(1) { CardSuit.DIAMONDS })
+                    )
+                } else if (boardTripsCount >= 2 && boardPairCount == 1) {
+                    // Mesa tiene el trío, Hero aporta la otra de la pareja
+                    val usedPairSuits = board.filter { it.rank == pairRank }.map { it.suit }.toSet()
+                    val availablePair = listOf(CardSuit.SPADES, CardSuit.DIAMONDS, CardSuit.CLUBS, CardSuit.HEARTS).filter { it !in usedPairSuits }
+                    val kickerSuit = listOf(CardSuit.CLUBS, CardSuit.HEARTS, CardSuit.SPADES).firstOrNull { it != availablePair.firstOrNull() } ?: CardSuit.CLUBS
+                    return listOf(
+                        PokerCard(pairRank, availablePair.getOrElse(0) { CardSuit.SPADES }),
+                        PokerCard(pairRank, kickerSuit)
+                    )
                 }
             }
         }
@@ -372,15 +396,43 @@ object LocalCardOcrDetector {
                 else -> rankStr ?: ""
             }
             if (targetRank.isNotEmpty() && board.count { it.rank == targetRank } >= 3) {
-                // Board has 3 of a kind! Hero cannot have targetRank!
-                // If hero erroneously has targetRank, keep hero's non-target card
                 return hero.filter { it.rank != targetRank }.let {
-                    if (it.size == 2) it else hero
+                    if (it.size == 2) sanitizeHeroCards(it, board) else sanitizeHeroCards(hero, board)
                 }
             }
         }
 
-        return hero
+        return sanitizeHeroCards(hero, board)
+    }
+
+    /**
+     * Sanitiza las cartas de Hero para que nunca contengan dos cartas exactamente idénticas
+     * ni choquen con cartas ya visibles en la mesa comunitaria.
+     */
+    private fun sanitizeHeroCards(hero: List<PokerCard>, board: List<PokerCard>): List<PokerCard> {
+        if (hero.size < 2) return hero
+        val c1 = hero[0]
+        var c2 = hero[1]
+
+        // Nunca dos cartas del mismo valor y mismo palo en mano
+        if (c1.rank == c2.rank && c1.suit == c2.suit) {
+            val usedSuits = (board + listOf(c1)).filter { it.rank == c1.rank }.map { it.suit }.toSet()
+            val available = listOf(CardSuit.SPADES, CardSuit.DIAMONDS, CardSuit.CLUBS, CardSuit.HEARTS).filter { it !in usedSuits }
+            c2 = c2.copy(suit = available.firstOrNull() ?: CardSuit.DIAMONDS)
+        }
+
+        val sanitized = mutableListOf<PokerCard>()
+        for (card in listOf(c1, c2)) {
+            val inBoard = board.any { it.rank == card.rank && it.suit == card.suit }
+            if (inBoard) {
+                val used = (board + sanitized).filter { it.rank == card.rank }.map { it.suit }.toSet()
+                val available = listOf(CardSuit.SPADES, CardSuit.DIAMONDS, CardSuit.CLUBS, CardSuit.HEARTS).filter { it !in used }
+                sanitized.add(card.copy(suit = available.firstOrNull() ?: CardSuit.CLUBS))
+            } else {
+                sanitized.add(card)
+            }
+        }
+        return sanitized
     }
 
     private fun extractCardsFromToken(
@@ -400,13 +452,12 @@ object LocalCardOcrDetector {
             return list
         }
 
-        if (clean.length in 2..5 && clean.all { it.equals(clean[0], ignoreCase = true) }) {
+        if (clean.length in 2..3 && clean.all { it.equals(clean[0], ignoreCase = true) }) {
             val charUpper = clean[0].uppercaseChar().toString()
             if (validRanks.contains(charUpper) || charUpper == "T") {
                 val rank = if (charUpper == "T") "10" else charUpper
-                for (i in 0 until clean.length) {
-                    list.add(rank to null)
-                }
+                list.add(rank to CardSuit.SPADES)
+                list.add(rank to CardSuit.HEARTS)
                 return list
             }
         }

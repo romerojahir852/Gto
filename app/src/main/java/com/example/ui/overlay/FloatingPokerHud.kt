@@ -108,23 +108,23 @@ fun FloatingPokerHud(
 
     Column(
         modifier = modifier
-            .padding(8.dp)
-            .widthIn(max = 350.dp),
+            .padding(2.dp)
+            .widthIn(max = 340.dp),
         horizontalAlignment = Alignment.Start
     ) {
         // Row with Floating Trigger Button + Status indicator
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            modifier = Modifier.padding(bottom = 6.dp)
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            modifier = Modifier.padding(bottom = 4.dp)
         ) {
-            // Draggable & Clickable Floating Button (Trigger)
+            // Draggable & Clickable Floating Button (Trigger) - Ultra-compact 40dp
             Box(
                 contentAlignment = Alignment.Center,
                 modifier = Modifier
                     .scale(buttonScale)
-                    .size(56.dp)
-                    .shadow(12.dp, CircleShape)
+                    .size(40.dp)
+                    .shadow(4.dp, CircleShape)
                     .clip(CircleShape)
                     .background(
                         Brush.radialGradient(
@@ -136,7 +136,7 @@ fun FloatingPokerHud(
                         )
                     )
                     .border(
-                        width = 2.dp,
+                        width = 1.5.dp,
                         brush = Brush.sweepGradient(
                             colors = listOf(
                                 Color(0xFF00E676),
@@ -164,9 +164,9 @@ fun FloatingPokerHud(
             ) {
                 if (state.isLoading) {
                     CircularProgressIndicator(
-                        modifier = Modifier.size(32.dp),
+                        modifier = Modifier.size(22.dp),
                         color = Color(0xFF00E676),
-                        strokeWidth = 3.dp
+                        strokeWidth = 2.dp
                     )
                 } else {
                     Column(
@@ -176,16 +176,16 @@ fun FloatingPokerHud(
                         Text(
                             text = "♠",
                             color = Color(0xFF00E676),
-                            fontSize = 20.sp,
+                            fontSize = 15.sp,
                             fontWeight = FontWeight.Black,
-                            lineHeight = 20.sp
+                            lineHeight = 15.sp
                         )
                         Text(
                             text = "GTO",
                             color = Color.White,
-                            fontSize = 9.sp,
+                            fontSize = 7.5.sp,
                             fontWeight = FontWeight.Bold,
-                            letterSpacing = 0.5.sp
+                            letterSpacing = 0.3.sp
                         )
                     }
                 }

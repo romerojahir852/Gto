@@ -200,31 +200,32 @@ class FloatingOverlayManager(
     }
 
     private suspend fun analizarPantallaConOcultamiento() {
-        // 1. Hiding UI: Pasar la UI flotante y su ventana en WindowManager a alpha = 0f e INVISIBLE
+        // 1. Hiding UI: Pasar la UI flotante a GONE y alpha 0f en WindowManager
         withContext(Dispatchers.Main) {
             val view = composeView
             val params = layoutParams
             if (view != null && params != null && view.isAttachedToWindow) {
                 try {
                     params.alpha = 0f
+                    params.flags = params.flags or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
                     windowManager.updateViewLayout(view, params)
                 } catch (e: Exception) {
                     Log.w(TAG, "No se pudo actualizar alpha a 0f en WindowManager", e)
                 }
             }
-            composeView?.visibility = View.INVISIBLE
+            composeView?.visibility = View.GONE
             composeView?.alpha = 0f
         }
 
-        // 2. Delay Estratégico mínimo (120ms) para garantizar render 100% limpio en MediaProjection
-        delay(120L)
+        // 2. Delay Estratégico (180ms) para garantizar render 100% limpio en MediaProjection sin el overlay
+        delay(180L)
 
-        // 3. Captura del frame nativo desde MediaProjection sin interferencia del botón flotante
+        // 3. Captura del frame nativo desde MediaProjection sin interferencia de la nube ni del botón
         val rawBitmap = withContext(Dispatchers.IO) {
             frameProvider?.invoke()
         }
 
-        // 4. Restaurar UI: Devolver inmediatamente a VISIBLE mostrando "Calculando..."
+        // 4. Restaurar UI: Devolver inmediatamente a VISIBLE mostrando estado de cálculo activo
         withContext(Dispatchers.Main) {
             composeView?.visibility = View.VISIBLE
             composeView?.alpha = 1f
@@ -233,6 +234,7 @@ class FloatingOverlayManager(
             if (view != null && params != null && view.isAttachedToWindow) {
                 try {
                     params.alpha = 1f
+                    params.flags = params.flags and WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE.inv()
                     windowManager.updateViewLayout(view, params)
                 } catch (e: Exception) {
                     Log.w(TAG, "No se pudo restaurar alpha a 1f en WindowManager", e)
@@ -240,36 +242,39 @@ class FloatingOverlayManager(
             }
             PokerGameStateManager.setExpanded(true)
             PokerGameStateManager.setLoading(true)
-            PokerGameStateManager.updateStatus("Calculando...")
+            PokerGameStateManager.updateStatus("Calculando visión con Gemini Serie 3...")
         }
 
         // 5. Ejecutar análisis GTO en segundo plano con el frame nativo completo (sin cortes destructivos)
         withContext(Dispatchers.IO) {
             val startTime = System.currentTimeMillis()
+            try {
+                if (rawBitmap != null) {
+                    val currentState = PokerGameStateManager.handState.value
+                    val result = repository.analyzeHand(rawBitmap, currentState, context)
+                    val latency = System.currentTimeMillis() - startTime
 
-            if (rawBitmap != null) {
-                val currentState = PokerGameStateManager.handState.value
-                val result = repository.analyzeHand(rawBitmap, currentState, context)
-                val latency = System.currentTimeMillis() - startTime
-
-                result.fold(
-                    onSuccess = { updatedState ->
-                        Log.d(TAG, "Live analysis finished in ${latency}ms: ${updatedState.fullGtoDecision}")
-                    },
-                    onFailure = { error ->
-                        Log.w(TAG, "Live analysis failed: ${error.message}")
-                        PokerGameStateManager.updateIncremental(
-                            statusMessage = error.message ?: "⚠️ Error de análisis",
-                            latencyMs = latency
-                        )
-                    }
-                )
-            } else {
-                val latency = System.currentTimeMillis() - startTime
-                PokerGameStateManager.updateIncremental(
-                    statusMessage = "⚠️ No se pudo capturar el frame de pantalla",
-                    latencyMs = latency
-                )
+                    result.fold(
+                        onSuccess = { updatedState ->
+                            Log.d(TAG, "Live analysis finished in ${latency}ms: ${updatedState.fullGtoDecision}")
+                        },
+                        onFailure = { error ->
+                            Log.w(TAG, "Live analysis failed: ${error.message}")
+                            PokerGameStateManager.updateIncremental(
+                                statusMessage = error.message ?: "⚠️ Error de análisis",
+                                latencyMs = latency
+                            )
+                        }
+                    )
+                } else {
+                    val latency = System.currentTimeMillis() - startTime
+                    PokerGameStateManager.updateIncremental(
+                        statusMessage = "⚠️ No se pudo capturar el frame de pantalla",
+                        latencyMs = latency
+                    )
+                }
+            } finally {
+                PokerGameStateManager.setLoading(false)
             }
         }
     }

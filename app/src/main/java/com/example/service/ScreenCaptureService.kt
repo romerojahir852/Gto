@@ -110,6 +110,7 @@ class ScreenCaptureService : Service() {
     override fun onCreate() {
         super.onCreate()
         instance = this
+        com.example.data.ApiKeyManager.init(this)
         createNotificationChannel()
 
         overlayManager = FloatingOverlayManager(this).apply {
@@ -316,27 +317,20 @@ class ScreenCaptureService : Service() {
     suspend fun captureFreshFrame(timeoutMs: Long = 1200L): Bitmap? {
         val reader = imageReader ?: return lastCapturedBitmap
 
-        // Registrar deferred para recibir el siguiente frame renderizado por Android
+        // 1. Purga total de buffers previos: descartar fotogramas antiguos donde el overlay seguía visible
+        try {
+            var oldImg: Image?
+            do {
+                oldImg = reader.acquireLatestImage() ?: reader.acquireNextImage()
+                oldImg?.close()
+            } while (oldImg != null)
+        } catch (e: Exception) {
+            // Buffer vaciado por completo
+        }
+
+        // 2. Registrar deferred para recibir el siguiente frame renderizado por Android
         val deferred = CompletableDeferred<Bitmap>()
         pendingFrameDeferred = deferred
-
-        // Si ya hay un frame disponible sin consumir en el buffer, adquirirlo directamente
-        var directImg: Image? = null
-        try {
-            directImg = reader.acquireLatestImage() ?: reader.acquireNextImage()
-            if (directImg != null) {
-                val bmp = imageToBitmap(directImg)
-                if (bmp != null) {
-                    lastCapturedBitmap = bmp
-                    pendingFrameDeferred = null
-                    return bmp
-                }
-            }
-        } catch (e: Exception) {
-            // Continuar con la espera asíncrona
-        } finally {
-            directImg?.close()
-        }
 
         return try {
             withTimeoutOrNull(timeoutMs) {
