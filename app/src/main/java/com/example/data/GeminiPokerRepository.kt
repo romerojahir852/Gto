@@ -286,7 +286,7 @@ class GeminiPokerRepository {
 
         for (modelName in candidateModels) {
             try {
-                val requestBody = buildJsonObject {
+                                val requestBody = buildJsonObject {
                     put("contents", buildJsonArray {
                         add(buildJsonObject {
                             put("parts", buildJsonArray {
@@ -306,8 +306,12 @@ class GeminiPokerRepository {
                         // Solo parámetros válidos en Gemini 3.x Flash.
                         // NO temperature, NO top_p, NO top_k: HTTP 400.
                         // NO presence_penalty, NO frequency_penalty.
-                        put("maxOutputTokens", 200)
+                        put("thinkingConfig", buildJsonObject {
+                            put("thinkingLevel", "low")
+                        })
+                        put("maxOutputTokens", 400)
                     })
+
                 }
 
                 val response = ktorClient.post(
