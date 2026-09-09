@@ -257,7 +257,7 @@ fun MainPokerScreen(
                                         color = Ink
                                     )
                                     Text(
-                                        text = "Optimizando imagen a 720p y analizando con gemini-1.5-flash",
+                                        text = "Visión multirresolución de alta fidelidad con Gemini Serie 3 Flash",
                                         style = MaterialTheme.typography.bodySmall,
                                         color = Ink3
                                     )

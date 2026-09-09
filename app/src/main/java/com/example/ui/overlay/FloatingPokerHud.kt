@@ -758,7 +758,7 @@ fun FloatingPokerHud(
                                 fontWeight = FontWeight.Bold
                             )
                             Text(
-                                text = "Recorte limpio • Gemini Flash (Timeout 4s)",
+                                text = "Visión Multirresolución • Gemini Serie 3 Flash",
                                 color = Color(0xFF9CA3AF),
                                 fontSize = 10.sp,
                                 textAlign = TextAlign.Center
