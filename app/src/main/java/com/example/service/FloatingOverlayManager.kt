@@ -215,10 +215,7 @@ class FloatingOverlayManager(
             frameProvider?.invoke()
         }
 
-        // 4. Cropping (Bitmap): Recorte y ensamblado de zonas matemáticas
-        val cleanBitmap = rawBitmap?.let { PokerImageProcessor.cropPokerTableRegions(it) }
-
-        // 5. Restaurar UI: Devolver inmediatamente a VISIBLE mostrando "Calculando..."
+        // 4. Restaurar UI: Devolver inmediatamente a VISIBLE mostrando "Calculando..."
         withContext(Dispatchers.Main) {
             composeView?.alpha = 1f
             composeView?.visibility = View.VISIBLE
@@ -227,27 +224,25 @@ class FloatingOverlayManager(
             PokerGameStateManager.updateStatus("Calculando...")
         }
 
-        // 6. Ejecutar análisis GTO en segundo plano con el Bitmap recortado
+        // 5. Ejecutar análisis GTO en segundo plano con el frame nativo completo (sin cortes destructivos)
         withContext(Dispatchers.IO) {
             val startTime = System.currentTimeMillis()
 
-            if (cleanBitmap != null) {
+            if (rawBitmap != null) {
                 val currentState = PokerGameStateManager.handState.value
-                val result = repository.analyzeHand(cleanBitmap, currentState)
+                val result = repository.analyzeHand(rawBitmap, currentState)
                 val latency = System.currentTimeMillis() - startTime
 
                 result.fold(
                     onSuccess = { updatedState ->
-                        if (updatedState.gtoAction == GtoAction.ERROR) {
-                            Log.w(TAG, "Analysis returned error state, running local poker engine fallback")
-                            performFastSimulatedAnalysis(latency)
-                        } else {
-                            Log.d(TAG, "Live analysis finished in ${latency}ms: ${updatedState.fullGtoDecision}")
-                        }
+                        Log.d(TAG, "Live analysis finished in ${latency}ms: ${updatedState.fullGtoDecision}")
                     },
                     onFailure = { error ->
-                        Log.w(TAG, "Live analysis failed, running fast local heuristic: ${error.message}")
-                        performFastSimulatedAnalysis(latency)
+                        Log.w(TAG, "Live analysis failed: ${error.message}")
+                        PokerGameStateManager.updateIncremental(
+                            statusMessage = error.message ?: "⚠️ Error de análisis",
+                            latencyMs = latency
+                        )
                     }
                 )
             } else {

@@ -2,6 +2,7 @@ package com.example.data
 
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.util.Base64
 import android.util.Log
 import com.example.BuildConfig
 import io.ktor.client.HttpClient
@@ -25,7 +26,7 @@ import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
-import kotlinx.serialization.json.put
+import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -36,35 +37,34 @@ class GeminiPokerRepository {
 
     companion object {
         private const val TAG = "GeminiPokerRepo"
-        // 3000ms cap: gemini-3.x Flash responde en 0.8-2.5s en condiciones normales.
-        private const val TIMEOUT_MS = 3000L
+        // 5000ms cap: tiempo suficiente para upload de frame en redes móviles y respuesta rápida
+        private const val TIMEOUT_MS = 5000L
         private const val MAX_IMAGE_DIMENSION = 720
         private const val JPEG_COMPRESSION_QUALITY = 85
         private const val ENDPOINT_BASE = "https://generativelanguage.googleapis.com/v1beta/models"
     }
 
     /**
-     * Cascada de modelos Gemini 3.x. El primero que responda completo gana.
-     * gemini-3.8-flash y gemini-3.7-flash son los preferidos del usuario pero a
-     * veces devuelven 503/timeout por alta demanda. En ese caso se cae a
-     * gemini-3.5-flash-lite o gemini-3.1-flash-lite, que en pruebas reales
-     * entregan la respuesta completa en 500-800ms.
+     * Cascada de modelos Gemini de producción.
+     * Prioriza gemini-2.5-flash y gemini-2.0-flash para visión multimodal instantánea.
      */
     private val candidateModels = listOf(
-        "gemini-3.8-flash",
-        "gemini-3.7-flash",
-        "gemini-3.5-flash-lite",
-        "gemini-3.1-flash-lite"
+        "gemini-2.5-flash",
+        "gemini-2.0-flash",
+        "gemini-1.5-flash",
+        "gemini-2.5-flash-lite",
+        "gemini-2.0-flash-lite",
+        "gemini-3.7-flash"
     )
 
     /**
-     * Ktor HTTP client con timeouts defensivos de 3000ms.
+     * Ktor HTTP client con timeouts de 5000ms.
      */
     private val ktorClient by lazy {
         HttpClient(Android) {
             engine {
-                connectTimeout = 3_000
-                socketTimeout = 3_000
+                connectTimeout = 5_000
+                socketTimeout = 5_000
             }
             expectSuccess = false
         }
@@ -106,17 +106,18 @@ class GeminiPokerRepository {
 
     /**
      * Prompt Espacial para Gemini Vision con detección integral de la partida.
-     * Se mantiene COMPLETO (no se recorta) para máxima precisión del parser.
      */
     fun buildSurgicalPrompt(state: HandState): String {
-        return "Contexto GTO: Fase[${state.fase}], Jugadores[${state.jugadores}], MiPosicion[${state.posicion}], Dealer[${state.dealerPosition}], Bote[${state.bote}]. " +
-                "Eres un escáner y analizador visual de mesa de póker profesional. " +
-                "REGLA 1 (CARTAS PROPIAS): Tus 2 cartas de la mano están SIEMPRE situadas en el cuadro de la PARTE INFERIOR. Selecciónalas como tus cartas propias. " +
-                "REGLA 2 (CARTAS COMUNITARIAS): Las cartas comunitarias (Flop, Turn, River) están alineadas exclusivamente en el CENTRO de la mesa. Si no hay cartas comunitarias, la fase es Preflop. " +
-                "REGLA 3 (JUGADORES Y DEALER): En el panorama de la mesa, contabiliza el número total de jugadores activos (entre 2 y 9) y localiza la posición del botón del Dealer ('D'). Identifica la posición del jugador: BTN, SB, BB, UTG, MP, CO. " +
-                "REGLA 4: Ignora animaciones y emojis. Diferencia palos rojos (Corazones h/Diamantes d) de negros (Picas s/Tréboles c). " +
-                "Responde ÚNICAMENTE en formato JSON estricto con las siguientes claves: " +
-                "\"cartas\" (ValorPalo), \"mesa\" (ValorPalo, vacío si no hay), \"jugadores\" (Int), \"dealer\" (Posición), \"miPosicion\" (Posición), \"fase\" (Preflop/Flop/Turn/River), \"outs\" (String), \"win\" (String), \"gto\" (Acción y Tamaño)."
+        return "Contexto de partida: Fase[${state.fase}], Jugadores[${state.jugadores}], MiPosicion[${state.posicion}], Dealer[${state.dealerPosition}], Bote[${state.bote}]. " +
+                "Eres un escáner y analizador visual de mesa de póker Texas Hold'em profesional de alta velocidad. " +
+                "Analiza la captura de pantalla: " +
+                "1. CARTAS HERO (TUS CARTAS): Localiza las 2 cartas boca arriba del jugador principal (Hero) en la parte inferior de la mesa (o junto al nombre/avatar del usuario). Escríbelas con Valor y Palo (ej: '10d 4h', 'As Kd', 'Jh Th'). Palos: s=picas ♠, h=corazones ♥, d=diamantes ♦, c=tréboles ♣. " +
+                "2. MESA (COMUNITARIAS): Las cartas comunitarias abiertas en el centro de la mesa (Flop 3, Turn 4, River 5). Si no hay, déjalo vacío o '-'. " +
+                "3. JUGADORES Y DEALER: Cuenta los jugadores activos sentados en la mesa (2 a 9) y localiza la ficha 'D' del Dealer. Identifica tu posición: BTN, SB, BB, UTG, MP, CO. " +
+                "4. BOTE: Monto numérico del bote central si está visible. " +
+                "5. DECISIÓN GTO: Mejor jugada GTO (FOLD, CHECK, CALL, BET, RAISE, ALL_IN) con tamaño o porcentaje. " +
+                "Responde ÚNICAMENTE un objeto JSON estricto con estas claves: " +
+                "{\"cartas\": \"10d 4h\", \"mesa\": \"\", \"jugadores\": 6, \"dealer\": \"BTN\", \"miPosicion\": \"BB\", \"bote\": \"\", \"fase\": \"Preflop\", \"outs\": \"0 Outs\", \"win\": \"35%\", \"gto\": \"FOLD\"}"
     }
 
     private data class GeminiCallResult(
@@ -198,7 +199,7 @@ class GeminiPokerRepository {
                     statusMessage = errorMsg,
                     latencyMs = latency
                 )
-                Result.success(updatedState)
+                Result.failure(Exception(errorMsg))
             }
         } catch (e: TimeoutCancellationException) {
             val latency = System.currentTimeMillis() - startTime
@@ -268,26 +269,24 @@ class GeminiPokerRepository {
     }
 
     /**
-     * REST directo a Gemini 3.x Flash via generateContent endpoint.
-     * Cascade: gemini-3.8-flash → gemini-3.7-flash.
-     * Sin temperature, sin top_p, sin top_k (causan HTTP 400 en Gemini 3.x).
-     * Cualquier 503 / respuesta vacía activa el siguiente modelo de la cascada.
+     * REST directo a Gemini Flash via generateContent endpoint.
+     * Cascada multi-modelo resiliente con soporte de API key en URL y headers.
      */
     private suspend fun callGeminiFast(
         apiKey: String,
         prompt: String,
         bitmap: Bitmap
     ): GeminiCallResult {
-        // Codificar imagen a base64 JPEG 85%
+        // Codificar imagen a base64 JPEG 85% usando Android native Base64 NO_WRAP
         val stream = ByteArrayOutputStream()
         bitmap.compress(Bitmap.CompressFormat.JPEG, JPEG_COMPRESSION_QUALITY, stream)
-        val base64Image = java.util.Base64.getEncoder().encodeToString(stream.toByteArray())
+        val base64Image = Base64.encodeToString(stream.toByteArray(), Base64.NO_WRAP)
 
         var lastError: String? = null
 
         for (modelName in candidateModels) {
             try {
-                                val requestBody = buildJsonObject {
+                val requestBody = buildJsonObject {
                     put("contents", buildJsonArray {
                         add(buildJsonObject {
                             put("parts", buildJsonArray {
@@ -295,8 +294,8 @@ class GeminiPokerRepository {
                                     put("text", prompt)
                                 })
                                 add(buildJsonObject {
-                                    put("inline_data", buildJsonObject {
-                                        put("mime_type", "image/jpeg")
+                                    put("inlineData", buildJsonObject {
+                                        put("mimeType", "image/jpeg")
                                         put("data", base64Image)
                                     })
                                 })
@@ -305,13 +304,12 @@ class GeminiPokerRepository {
                     })
                     put("generationConfig", buildJsonObject {
                         put("responseMimeType", "application/json")
-                        put("maxOutputTokens", 400)
+                        put("maxOutputTokens", 500)
                     })
-
                 }
 
                 val response = ktorClient.post(
-                    "$ENDPOINT_BASE/$modelName:generateContent"
+                    "$ENDPOINT_BASE/$modelName:generateContent?key=$apiKey"
                 ) {
                     headers {
                         append("x-goog-api-key", apiKey)
@@ -451,7 +449,19 @@ class GeminiPokerRepository {
         var parsedFase: String? = null
 
         try {
-            val jsonObj = json.parseToJsonElement(rawText).jsonObject
+            val cleanText = rawText
+                .replace(Regex("^```(?:json)?", RegexOption.MULTILINE), "")
+                .replace(Regex("```$", RegexOption.MULTILINE), "")
+                .trim()
+            val startIdx = cleanText.indexOf('{')
+            val endIdx = cleanText.lastIndexOf('}')
+            val jsonPayload = if (startIdx != -1 && endIdx != -1 && endIdx > startIdx) {
+                cleanText.substring(startIdx, endIdx + 1)
+            } else {
+                cleanText
+            }
+
+            val jsonObj = json.parseToJsonElement(jsonPayload).jsonObject
             
             jsonObj["cartas"]?.jsonPrimitive?.contentOrNull?.let { value ->
                 val parsed = PokerCard.parseMultiple(value)
@@ -468,8 +478,9 @@ class GeminiPokerRepository {
                 }
             }
             
-            jsonObj["jugadores"]?.jsonPrimitive?.contentOrNull?.toIntOrNull()?.let { count ->
-                if (count in 2..9) detectedPlayers = count
+            jsonObj["jugadores"]?.jsonPrimitive?.let { prim ->
+                val count = prim.intOrNull ?: prim.contentOrNull?.toIntOrNull()
+                if (count != null && count in 2..9) detectedPlayers = count
             }
             
             jsonObj["dealer"]?.jsonPrimitive?.contentOrNull?.let { value ->
@@ -478,6 +489,13 @@ class GeminiPokerRepository {
             
             jsonObj["miPosicion"]?.jsonPrimitive?.contentOrNull?.let { value ->
                 if (value.isNotBlank()) detectedMyPos = value.uppercase().trim()
+            }
+            
+            jsonObj["bote"]?.jsonPrimitive?.contentOrNull?.let { value ->
+                val cleanBote = value.replace(Regex("[^0-9.]"), "").toDoubleOrNull()
+                if (cleanBote != null && cleanBote > 0.0) {
+                    GTOStateManager.setBote(cleanBote)
+                }
             }
             
             jsonObj["fase"]?.jsonPrimitive?.contentOrNull?.let { value ->

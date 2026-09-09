@@ -390,6 +390,30 @@ fun FloatingPokerHud(
                         }
                     }
 
+                    // Status feedback banner (Warnings, Errors, or Model Info)
+                    if (state.statusMessage.isNotBlank() && state.statusMessage != "Listo para capturar") {
+                        Surface(
+                            shape = RoundedCornerShape(6.dp),
+                            color = if (state.statusMessage.startsWith("⚠️")) Color(0xFF2E1515) else Color(0xFF132A1C),
+                            border = androidx.compose.foundation.BorderStroke(
+                                1.dp,
+                                if (state.statusMessage.startsWith("⚠️")) Color(0xFF7F1D1D) else Color(0xFF1B4D2E)
+                            ),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(bottom = 6.dp)
+                        ) {
+                            Text(
+                                text = state.statusMessage,
+                                color = if (state.statusMessage.startsWith("⚠️")) Color(0xFFFCA5A5) else Color(0xFF86EFAC),
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Medium,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                                maxLines = 2
+                            )
+                        }
+                    }
+
                     // GTO State Bar: Active Players counter (+ / -), Dealer Button 'D' & Hero Position + Game Phase
                     Surface(
                         shape = RoundedCornerShape(8.dp),

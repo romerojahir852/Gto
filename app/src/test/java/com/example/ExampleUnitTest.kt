@@ -49,18 +49,18 @@ class ExampleUnitTest {
         val repo = GeminiPokerRepository()
         val state = HandState(
             fase = "Flop",
-            bote = "150 BB",
+            bote = 150.0,
             jugadores = 6,
             posicion = "BTN",
             dealerPosition = "BTN"
         )
         val prompt = repo.buildSurgicalPrompt(state)
 
-        assertTrue(prompt.contains("Contexto GTO: Fase[Flop], Jugadores[6], MiPosicion[BTN], Dealer[BTN], Bote[150 BB]"))
-        assertTrue(prompt.contains("REGLA 1 (CARTAS PROPIAS): Tus 2 cartas de la mano están SIEMPRE situadas en el cuadro de la PARTE INFERIOR."))
-        assertTrue(prompt.contains("REGLA 2 (CARTAS COMUNITARIAS): Las cartas comunitarias (Flop, Turn, River) están alineadas exclusivamente en el CENTRO de la mesa."))
-        assertTrue(prompt.contains("REGLA 3 (JUGADORES Y DEALER): En el panorama de la mesa, contabiliza el número total de jugadores activos (entre 2 y 9) y localiza la posición del botón del Dealer ('D')."))
-        assertTrue(prompt.contains("Cartas:[ValorPalo] | Mesa:[ValorPalo] | Jugadores:[2-9] | Dealer:[Posición] | MiPosicion:[Posición] | Fase:[Preflop/Flop/Turn/River]"))
+        assertTrue(prompt.contains("Contexto de partida: Fase[Flop], Jugadores[6], MiPosicion[BTN], Dealer[BTN], Bote[150.0]"))
+        assertTrue(prompt.contains("1. CARTAS HERO (TUS CARTAS)"))
+        assertTrue(prompt.contains("2. MESA (COMUNITARIAS)"))
+        assertTrue(prompt.contains("3. JUGADORES Y DEALER"))
+        assertTrue(prompt.contains("5. DECISIÓN GTO"))
     }
 
     @Test
@@ -83,7 +83,7 @@ class ExampleUnitTest {
     @Test
     fun `parse surgical response correctly parses regex-ready output with players dealer and phase`() {
         val repo = GeminiPokerRepository()
-        val rawResponse = "Cartas:[As Kd] | Mesa:[Qh Jh 2c] | Jugadores:[7] | Dealer:[CO] | MiPosicion:[BTN] | Fase:[Flop] | Outs:[8] | Win:[48]% | GTO:[Raise 3.5BB]"
+        val rawResponse = """{"cartas": "As Kd", "mesa": "Qh Jh 2c", "jugadores": 7, "dealer": "CO", "miPosicion": "BTN", "fase": "Flop", "outs": "8", "win": "48%", "gto": "Raise 3.5BB"}"""
         val state = HandState()
         val parsed = repo.parseSurgicalResponse(rawResponse, state, 850L)
 
