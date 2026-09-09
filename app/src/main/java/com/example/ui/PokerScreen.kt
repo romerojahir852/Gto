@@ -42,6 +42,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Casino
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Key
@@ -67,6 +68,9 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.window.Dialog
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -119,6 +123,7 @@ fun PokerScreen(
     val selectedPreset by viewModel.selectedPreset.collectAsState()
     val currentPreviewBitmap by viewModel.currentPreviewBitmap.collectAsState()
     val handState by PokerGameStateManager.handState.collectAsState()
+    var showApiKeyModal by remember { mutableStateOf(false) }
 
     var overlayCheckCounter by remember { mutableStateOf(0) }
     val canDrawOverlays = remember(overlayCheckCounter, isServiceRunning) {
@@ -150,6 +155,7 @@ fun PokerScreen(
             } else {
                 context.startService(intent)
             }
+            ScreenCaptureService.showFloatingOverlay()
         }
     }
 
@@ -187,32 +193,48 @@ fun PokerScreen(
                     }
                 },
                 actions = {
-                    androidx.compose.material3.Surface(
-                        shape = RoundedCornerShape(999.dp),
-                        color = if (isServiceRunning) Color(0xFFECFDF5) else Color(0xFFF3F4F6),
-                        border = androidx.compose.foundation.BorderStroke(
-                            1.dp,
-                            if (isServiceRunning) Color(0xFFA7F3D0) else Color(0xFFDCDCDC)
-                        ),
-                        modifier = Modifier.padding(end = 12.dp)
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.padding(end = 8.dp)
                     ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        IconButton(
+                            onClick = { showApiKeyModal = true },
+                            modifier = Modifier.padding(end = 4.dp)
                         ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(6.dp)
-                                    .clip(CircleShape)
-                                    .background(if (isServiceRunning) Color(0xFF10B981) else Ink3)
+                            Icon(
+                                imageVector = Icons.Default.Key,
+                                contentDescription = "Configurar Gemini API Key",
+                                tint = if (ApiKeyManager.hasApiKey(context)) Color(0xFF10B981) else Color(0xFFF59E0B),
+                                modifier = Modifier.size(22.dp)
                             )
-                            Text(
-                                text = if (isServiceRunning) "Captura activa" else "Captura inactiva",
-                                color = if (isServiceRunning) Color(0xFF047857) else Ink3,
-                                fontSize = 10.sp,
-                                fontWeight = FontWeight.Bold
+                        }
+
+                        androidx.compose.material3.Surface(
+                            shape = RoundedCornerShape(999.dp),
+                            color = if (isServiceRunning) Color(0xFFECFDF5) else Color(0xFFF3F4F6),
+                            border = androidx.compose.foundation.BorderStroke(
+                                1.dp,
+                                if (isServiceRunning) Color(0xFFA7F3D0) else Color(0xFFDCDCDC)
                             )
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(6.dp)
+                                        .clip(CircleShape)
+                                        .background(if (isServiceRunning) Color(0xFF10B981) else Ink3)
+                                )
+                                Text(
+                                    text = if (isServiceRunning) "Captura activa" else "Captura inactiva",
+                                    color = if (isServiceRunning) Color(0xFF047857) else Ink3,
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
                         }
                     }
                 },
@@ -221,7 +243,28 @@ fun PokerScreen(
                 )
             )
         },
-        bottomBar = { BottomActionBar(isServiceRunning = isServiceRunning, isAnalyzing = isAnalyzing, onAnalyzeNow = { if (isServiceRunning) viewModel.triggerScreenCapture() else viewModel.analyzeCurrentPreset() }) },
+        bottomBar = {
+            BottomActionBar(
+                isServiceRunning = isServiceRunning,
+                isAnalyzing = isAnalyzing,
+                onAnalyzeNow = {
+                    if (isServiceRunning) {
+                        viewModel.triggerScreenCapture()
+                    } else if (canDrawOverlays) {
+                        val mpManager = context.getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
+                        mediaProjectionLauncher.launch(mpManager.createScreenCaptureIntent())
+                    } else {
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                            val intent = Intent(
+                                Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                                Uri.parse("package:${context.packageName}")
+                            )
+                            overlayPermissionLauncher.launch(intent)
+                        }
+                    }
+                }
+            )
+        },
         containerColor = BgWhite,
         modifier = modifier.fillMaxSize()
     ) { innerPadding ->
@@ -235,6 +278,14 @@ fun PokerScreen(
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 item { Spacer(modifier = Modifier.height(4.dp)) }
+
+                item {
+                    TopApiKeyStatusBanner(
+                        isConfigured = ApiKeyManager.isConfigured(context),
+                        maskedKey = ApiKeyManager.getMaskedKey(context),
+                        onClick = { showApiKeyModal = true }
+                    )
+                }
 
                 item {
                     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -333,31 +384,34 @@ fun PokerScreen(
                                 }
                             },
                             onLaunchOverlay = {
-                                if (isServiceRunning) {
+                                if (!canDrawOverlays) {
+                                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                                        val intent = Intent(
+                                            Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                                            Uri.parse("package:${context.packageName}")
+                                        )
+                                        overlayPermissionLauncher.launch(intent)
+                                    }
+                                } else if (isServiceRunning) {
                                     ScreenCaptureService.showFloatingOverlay()
                                 } else {
-                                    val intent = Intent(context, ScreenCaptureService::class.java).apply {
-                                        action = ScreenCaptureService.ACTION_START
-                                    }
-                                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                                        context.startForegroundService(intent)
-                                    } else {
-                                        context.startService(intent)
-                                    }
+                                    val mpManager = context.getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
+                                    mediaProjectionLauncher.launch(mpManager.createScreenCaptureIntent())
                                 }
                             },
-                            onTriggerSimulation = {
-                                if (!isServiceRunning) {
-                                    val intent = Intent(context, ScreenCaptureService::class.java).apply {
-                                        action = ScreenCaptureService.ACTION_START
-                                    }
-                                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                                        context.startForegroundService(intent)
-                                    } else {
-                                        context.startService(intent)
-                                    }
+                            onStopService = {
+                                val intent = Intent(context, ScreenCaptureService::class.java).apply {
+                                    action = ScreenCaptureService.ACTION_STOP
                                 }
-                                ScreenCaptureService.triggerFloatingAnalysis()
+                                context.startService(intent)
+                            },
+                            onTriggerSimulation = {
+                                if (isServiceRunning) {
+                                    ScreenCaptureService.triggerFloatingAnalysis()
+                                } else {
+                                    val mpManager = context.getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
+                                    mediaProjectionLauncher.launch(mpManager.createScreenCaptureIntent())
+                                }
                             }
                         )
                     }
@@ -496,6 +550,13 @@ fun PokerScreen(
                 item { Spacer(modifier = Modifier.height(24.dp)) }
             }
         }
+    }
+
+    if (showApiKeyModal) {
+        ApiKeyConfigDialog(
+            onDismiss = { showApiKeyModal = false },
+            onKeySaved = { showApiKeyModal = false }
+        )
     }
 }
 
@@ -1193,6 +1254,7 @@ private fun FloatingOverlayControlCard(
     isServiceRunning: Boolean,
     onRequestOverlayPermission: () -> Unit,
     onLaunchOverlay: () -> Unit,
+    onStopService: () -> Unit,
     onTriggerSimulation: () -> Unit
 ) {
     Card(
@@ -1254,7 +1316,7 @@ private fun FloatingOverlayControlCard(
             }
 
             Text(
-                text = "Permite mostrar el botón flotante arrastrable y el panel de resultados ('La Nube') sobre cualquier aplicación de poker o mesa en pantalla.",
+                text = "Muestra el botón flotante arrastrable y el panel GTO sobre cualquier mesa de póker externa (BC Poker, GG Poker, etc.).",
                 color = Ink3,
                 fontSize = 12.sp,
                 lineHeight = 16.sp
@@ -1286,36 +1348,56 @@ private fun FloatingOverlayControlCard(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Button(
-                        onClick = onLaunchOverlay,
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00E676)),
-                        shape = RoundedCornerShape(10.dp),
-                        modifier = Modifier
-                            .weight(1f)
-                            .testTag("launch_floating_button")
-                    ) {
-                        Text(
-                            text = "Mostrar Botón Flotante",
-                            color = Color.Black,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 12.sp
-                        )
-                    }
+                    if (isServiceRunning) {
+                        Button(
+                            onClick = onLaunchOverlay,
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00E676)),
+                            shape = RoundedCornerShape(10.dp),
+                            modifier = Modifier
+                                .weight(1f)
+                                .testTag("launch_floating_button")
+                        ) {
+                            Text(
+                                text = "Mostrar Overlay",
+                                color = Color.Black,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 12.sp
+                            )
+                        }
 
-                    OutlinedButton(
-                        onClick = onTriggerSimulation,
-                        shape = RoundedCornerShape(10.dp),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF38BDF8)),
-                        modifier = Modifier
-                            .weight(1f)
-                            .testTag("test_floating_simulation_button")
-                    ) {
-                        Text(
-                            text = "Probar Nube (2s)",
-                            color = Color(0xFF38BDF8),
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 12.sp
-                        )
+                        OutlinedButton(
+                            onClick = onStopService,
+                            shape = RoundedCornerShape(10.dp),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFEF4444)),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Icon(Icons.Default.Stop, contentDescription = null, tint = Color(0xFFEF4444), modifier = Modifier.size(14.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = "Detener",
+                                color = Color(0xFFEF4444),
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 12.sp
+                            )
+                        }
+                    } else {
+                        Button(
+                            onClick = onLaunchOverlay,
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00E676)),
+                            shape = RoundedCornerShape(10.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .testTag("launch_floating_button")
+                        ) {
+                            Icon(Icons.Default.PlayArrow, contentDescription = null, tint = Color.Black, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "Iniciar Captura y Overlay Flotante",
+                                color = Color.Black,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 13.sp
+                            )
+                        }
                     }
                 }
             }
@@ -1572,6 +1654,239 @@ fun ApiKeySettingsCard(
                         fontWeight = FontWeight.Medium,
                         modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
                     )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun TopApiKeyStatusBanner(
+    isConfigured: Boolean,
+    maskedKey: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        shape = RoundedCornerShape(12.dp),
+        color = if (isConfigured) Color(0xFF0F291E) else Color(0xFF2E200B),
+        border = androidx.compose.foundation.BorderStroke(
+            1.dp,
+            if (isConfigured) Color(0xFF10B981) else Color(0xFFF59E0B)
+        ),
+        modifier = modifier
+            .fillMaxWidth()
+            .clickable { onClick() }
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                modifier = Modifier.weight(1f)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Key,
+                    contentDescription = null,
+                    tint = if (isConfigured) Color(0xFF10B981) else Color(0xFFF59E0B),
+                    modifier = Modifier.size(20.dp)
+                )
+                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text(
+                        text = if (isConfigured) "Gemini 2.5 Flash Activo" else "Modo OCR Local (Sin API Key)",
+                        color = if (isConfigured) Color(0xFF34D399) else Color(0xFFFBBF24),
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = if (isConfigured) "Clave: $maskedKey • Toca para gestionar" else "Escaneando en dispositivo. Toca para ingresar API Key",
+                        color = Color(0xFF94A3B8),
+                        fontSize = 10.sp
+                    )
+                }
+            }
+
+            Surface(
+                shape = RoundedCornerShape(6.dp),
+                color = if (isConfigured) Color(0xFF065F46) else Color(0xFF78350F)
+            ) {
+                Text(
+                    text = if (isConfigured) "GESTIONAR" else "CONFIGURAR",
+                    color = if (isConfigured) Color(0xFFA7F3D0) else Color(0xFFFDE68A),
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Black,
+                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun ApiKeyConfigDialog(
+    onDismiss: () -> Unit,
+    onKeySaved: () -> Unit
+) {
+    val context = LocalContext.current
+    val clipboardManager = LocalClipboardManager.current
+    var inputKey by remember { mutableStateOf(ApiKeyManager.getApiKey(context) ?: "") }
+    var saveSuccess by remember { mutableStateOf(false) }
+    val isConfigured = ApiKeyManager.isConfigured(context)
+
+    Dialog(onDismissRequest = onDismiss) {
+        Card(
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = Color(0xFF0F172A)),
+            border = androidx.compose.foundation.BorderStroke(1.5.dp, Color(0xFF10B981)),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(
+                modifier = Modifier.padding(18.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Key,
+                            contentDescription = null,
+                            tint = Color(0xFF10B981),
+                            modifier = Modifier.size(22.dp)
+                        )
+                        Text(
+                            text = "Gemini API Key",
+                            color = Color.White,
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                    IconButton(
+                        onClick = onDismiss,
+                        modifier = Modifier.size(24.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Close,
+                            contentDescription = "Cerrar",
+                            tint = Color(0xFF94A3B8),
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+                }
+
+                Text(
+                    text = "Para activar la visión multimodal de Gemini 2.5 Flash, ingresa tu clave gratuita de Google AI Studio. Si no tienes una, la app usará automáticamente el motor OCR Local de ML Kit.",
+                    color = Color(0xFF94A3B8),
+                    fontSize = 12.sp,
+                    lineHeight = 16.sp
+                )
+
+                OutlinedTextField(
+                    value = inputKey,
+                    onValueChange = {
+                        inputKey = it
+                        saveSuccess = false
+                    },
+                    placeholder = {
+                        Text("AIzaSy...", color = Color(0xFF64748B), fontSize = 12.sp)
+                    },
+                    trailingIcon = {
+                        TextButton(
+                            onClick = {
+                                val clip = clipboardManager.getText()?.text
+                                if (!clip.isNullOrBlank()) {
+                                    inputKey = clip.trim()
+                                }
+                            }
+                        ) {
+                            Text("Pegar", color = Color(0xFF10B981), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        }
+                    },
+                    singleLine = true,
+                    textStyle = androidx.compose.ui.text.TextStyle(
+                        color = Color.White,
+                        fontSize = 12.sp,
+                        fontFamily = FontFamily.Monospace
+                    ),
+                    shape = RoundedCornerShape(8.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = Color(0xFF10B981),
+                        unfocusedBorderColor = Color(0xFF334155),
+                        focusedContainerColor = Color(0xFF1E293B),
+                        unfocusedContainerColor = Color(0xFF1E293B)
+                    ),
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                TextButton(
+                    onClick = {
+                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://aistudio.google.com/app/apikey"))
+                        context.startActivity(intent)
+                    },
+                    contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.OpenInNew,
+                        contentDescription = null,
+                        tint = Color(0xFF38BDF8),
+                        modifier = Modifier.size(14.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = "Obtener API Key Gratis en Google AI Studio",
+                        color = Color(0xFF38BDF8),
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    if (isConfigured) {
+                        OutlinedButton(
+                            onClick = {
+                                ApiKeyManager.clearApiKey(context)
+                                inputKey = ""
+                                saveSuccess = false
+                            },
+                            shape = RoundedCornerShape(8.dp),
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFEF4444))
+                        ) {
+                            Icon(Icons.Default.Delete, contentDescription = null, modifier = Modifier.size(14.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Borrar Clave", fontSize = 11.sp)
+                        }
+                    } else {
+                        Spacer(modifier = Modifier.width(1.dp))
+                    }
+
+                    Button(
+                        onClick = {
+                            if (inputKey.isNotBlank()) {
+                                ApiKeyManager.saveApiKey(context, inputKey)
+                                saveSuccess = true
+                                onKeySaved()
+                            }
+                        },
+                        enabled = inputKey.isNotBlank(),
+                        shape = RoundedCornerShape(8.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF10B981))
+                    ) {
+                        Icon(Icons.Default.Save, contentDescription = null, tint = Color.Black, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Guardar Clave", color = Color.Black, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                    }
                 }
             }
         }

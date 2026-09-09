@@ -99,11 +99,25 @@ object GTOStateManager {
         syncToGameState()
     }
 
+    fun rotateDealer() {
+        val positions = listOf("BTN", "SB", "BB", "UTG", "MP", "CO")
+        val idx = positions.indexOfFirst { it.equals(_dealerPosition.value, ignoreCase = true) }
+        val nextIdx = if (idx >= 0) (idx + 1) % positions.size else 0
+        setDealerPosition(positions[nextIdx], true)
+    }
+
     fun setFase(fase: String) {
         if (fase.isNotBlank()) {
             _faseActual.value = fase.trim()
             syncToGameState()
         }
+    }
+
+    fun nextPhase() {
+        val phases = listOf("Preflop", "Flop", "Turn", "River")
+        val idx = phases.indexOfFirst { it.equals(_faseActual.value, ignoreCase = true) }
+        val nextIdx = if (idx >= 0) (idx + 1) % phases.size else 0
+        setFase(phases[nextIdx])
     }
 
     fun setPotSize(pot: Double) {

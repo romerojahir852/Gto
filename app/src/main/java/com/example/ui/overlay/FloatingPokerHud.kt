@@ -28,6 +28,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Settings
@@ -38,6 +39,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.derivedStateOf
@@ -380,19 +382,38 @@ fun FloatingPokerHud(
                                 }
                             }
 
-                            IconButton(
-                                onClick = {
-                                    enteredKey = com.example.data.ApiKeyManager.getApiKey(context) ?: ""
-                                    showApiKeyDialog = !showApiKeyDialog
-                                },
-                                modifier = Modifier.size(26.dp)
+                            Surface(
+                                shape = RoundedCornerShape(6.dp),
+                                color = if (com.example.data.ApiKeyManager.hasApiKey(context)) Color(0xFF0F3820) else Color(0xFF382A0F),
+                                border = androidx.compose.foundation.BorderStroke(
+                                    1.dp,
+                                    if (com.example.data.ApiKeyManager.hasApiKey(context)) Color(0xFF00E676) else Color(0xFFFFD700)
+                                ),
+                                modifier = Modifier
+                                    .testTag("hud_header_api_key_btn")
+                                    .clickable {
+                                        enteredKey = com.example.data.ApiKeyManager.getApiKey(context) ?: ""
+                                        showApiKeyDialog = !showApiKeyDialog
+                                    }
                             ) {
-                                Icon(
-                                    imageVector = Icons.Default.Settings,
-                                    contentDescription = "Configurar API Key",
-                                    tint = if (com.example.data.ApiKeyManager.hasApiKey(context)) Color(0xFF00E676) else Color(0xFFFFD700),
-                                    modifier = Modifier.size(16.dp)
-                                )
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(3.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Key,
+                                        contentDescription = "Configurar API Key",
+                                        tint = if (com.example.data.ApiKeyManager.hasApiKey(context)) Color(0xFF00E676) else Color(0xFFFFD700),
+                                        modifier = Modifier.size(11.dp)
+                                    )
+                                    Text(
+                                        text = if (com.example.data.ApiKeyManager.hasApiKey(context)) "IA" else "API KEY",
+                                        color = if (com.example.data.ApiKeyManager.hasApiKey(context)) Color(0xFF00E676) else Color(0xFFFFD700),
+                                        fontSize = 9.sp,
+                                        fontWeight = FontWeight.Black
+                                    )
+                                }
                             }
 
                             IconButton(
@@ -497,10 +518,32 @@ fun FloatingPokerHud(
                                     ),
                                     modifier = Modifier.fillMaxWidth()
                                 )
+                                val clipboardManager = LocalClipboardManager.current
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.End
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
                                 ) {
+                                    Surface(
+                                        shape = RoundedCornerShape(4.dp),
+                                        color = Color(0xFF1E293B),
+                                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF38BDF8)),
+                                        modifier = Modifier.clickable {
+                                            val clip = clipboardManager.getText()?.text
+                                            if (!clip.isNullOrBlank()) {
+                                                enteredKey = clip.trim()
+                                            }
+                                        }
+                                    ) {
+                                        Text(
+                                            text = "Pegar",
+                                            color = Color(0xFF38BDF8),
+                                            fontSize = 9.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                        )
+                                    }
+
                                     androidx.compose.material3.Button(
                                         onClick = {
                                             if (enteredKey.isNotBlank()) {
@@ -615,11 +658,13 @@ fun FloatingPokerHud(
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.spacedBy(4.dp)
                                 ) {
-                                    // Dealer Badge
+                                    // Dealer Badge (Clickable to rotate)
                                     Surface(
                                         shape = CircleShape,
                                         color = Color(0xFFFFD700),
-                                        modifier = Modifier.testTag("hud_dealer_badge")
+                                        modifier = Modifier
+                                            .testTag("hud_dealer_badge")
+                                            .clickable { GTOStateManager.rotateDealer() }
                                     ) {
                                         Text(
                                             text = "D",
@@ -634,13 +679,15 @@ fun FloatingPokerHud(
                                         text = state.dealerPosition,
                                         color = Color(0xFFFFD700),
                                         fontSize = 9.sp,
-                                        fontWeight = FontWeight.Bold
+                                        fontWeight = FontWeight.Bold,
+                                        modifier = Modifier.clickable { GTOStateManager.rotateDealer() }
                                     )
 
-                                    // Phase Badge (Preflop, Flop, Turn, River)
+                                    // Phase Badge (Preflop, Flop, Turn, River - Clickable to advance)
                                     Surface(
                                         shape = RoundedCornerShape(4.dp),
-                                        color = Color(0xFF1E3A8A)
+                                        color = Color(0xFF1E3A8A),
+                                        modifier = Modifier.clickable { GTOStateManager.nextPhase() }
                                     ) {
                                         Text(
                                             text = state.fase.uppercase(),
