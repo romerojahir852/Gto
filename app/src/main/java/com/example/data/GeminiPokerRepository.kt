@@ -45,18 +45,13 @@ class GeminiPokerRepository {
     }
 
     /**
-     * Cascada oficial de modelos Google Gemini multimodal vision.
-     * Prioriza Gemini 3.8 Flash / flash (la última generación de Google AI Studio con razonamiento espacial)
-     * y enlaza fluidamente con 2.5 Flash, 2.0 Flash y 1.5 Flash.
+     * Cascada oficial de modelos Google Gemini Serie 3 Flash (Última Generación Oficial).
+     * Exclusivamente Gemini 3.8 Flash, 3.7 Flash y 3.6 Flash para máxima velocidad y razonamiento visual.
      */
     private val candidateModels = listOf(
         "gemini-3.8-flash",
-        "flash",
-        "gemini-2.5-flash",
-        "gemini-2.5-flash-lite",
-        "gemini-2.0-flash",
-        "gemini-2.0-flash-lite",
-        "gemini-1.5-flash"
+        "gemini-3.7-flash",
+        "gemini-3.6-flash"
     )
 
     /**
@@ -111,26 +106,27 @@ class GeminiPokerRepository {
      */
     fun buildSurgicalPrompt(state: HandState): String {
         return """
-        You are a World-Class Texas Hold'em Computer Vision Analyzer with millimetric spatial precision.
+        You are a World-Class Texas Hold'em Vision Engine with millimetric spatial precision.
+        You are provided with up to 3 optical perspectives of the poker table:
+        - Image 1: Macro Full Table view (Seats, active players, dealer button 'D', pot, table layout).
+        - Image 2: Micro-Zoom view of the Community Cards (Center table board: Flop/Turn/River).
+        - Image 3: Micro-Zoom view of the Hero seat & Hole Cards (Bottom area of table).
         Context: Phase[${state.fase}], Players[${state.jugadores}], MyPos[${state.posicion}], Dealer[${state.dealerPosition}].
 
-        Carefully scan the image and identify:
-        1. HERO HOLE CARDS (Tus 2 cartas propias):
-           - Located near the bottom of the table (often bottom-center or bottom-left next to the user's avatar, chips, and name, e.g. Jr699).
-           - The Hero's 2 cards are face-up with clearly visible rank and suit (e.g. '10h 4h' or 'As Kd').
-           - Note: Check if there is helper text underneath Hero's avatar (e.g. 'trío de Ks', 'par de ases', 'doble pareja', 'escalera') to confirm the cards!
-        2. COMMUNITY CARDS (Mesa / Flop / Turn / River):
-           - Located horizontally in the center of the table (Flop = 3 cards, Turn = 4 cards, River = 5 cards).
-           - Example: three kings on board is 'Kh Kc Ks'.
-           - If Preflop and no community cards are dealt yet, return "".
-        3. POT:
-           - Total pot amount in the center (e.g. '2596' or '1600').
-        4. DEALER BUTTON:
-           - Find the player seat with the yellow 'D' dealer button.
-        5. ACTIVE SEATED PLAYERS:
-           - Count total players active in the hand (2 to 9).
-        6. GTO ACTION & EQUITY:
-           - Best action (FOLD, CHECK, CALL, BET, RAISE, ALL-IN) and Win Equity %.
+        STRICT POKER RULES & AXIOMS:
+        1. Standard 52-Card Deck: Every card is unique in rank and suit. A card CANNOT appear in both Hero's hand and the Community cards!
+        2. Hero Hole Cards: Hero ALWAYS holds exactly 2 face-up cards. Opponents' cards are face-down (card backs like red/black patterned rectangles); NEVER read opponent card backs as cards.
+           - Look at Hero's seat at the bottom (bottom-center or bottom-left, e.g. Jr699).
+           - Under Hero's avatar, read the combination text badge if present (e.g. 'trío de Ks', 'par de ases', 'doble pareja', 'escalera') to cross-verify the cards!
+        3. Community Cards: Located horizontally in the center of the table. Preflop = "" (none). Flop = 3 cards. Turn = 4 cards. River = 5 cards.
+           - Note: The board can contain pairs, triplets, or quads (e.g. "Kh Kc Ks"). Retain all cards in left-to-right order.
+        4. Card Suits:
+           - ♥ Hearts = h (Red)
+           - ♦ Diamonds = d (Blue in 4-color deck, Red in 2-color deck)
+           - ♣ Clubs = c (Green in 4-color deck, Black in 2-color deck)
+           - ♠ Spades = s (Black)
+        5. Pot: Numeric total pot amount in the center (e.g. "2596").
+        6. Dealer Button: Yellow circle with 'D' or 'DEALER'.
 
         Format: Output STRICT JSON ONLY with these exact keys:
         {
@@ -267,10 +263,13 @@ class GeminiPokerRepository {
         prompt: String,
         bitmap: Bitmap
     ): GeminiCallResult {
-        // Codificar imagen a base64 JPEG 85% usando Android native Base64 NO_WRAP
-        val stream = ByteArrayOutputStream()
-        bitmap.compress(Bitmap.CompressFormat.JPEG, JPEG_COMPRESSION_QUALITY, stream)
-        val base64Image = Base64.encodeToString(stream.toByteArray(), Base64.NO_WRAP)
+        // Generar perspectivas multirresolución: Macro (Mesa), Zoom Mesa (Comunitarias), Zoom Hero (Cartas Propias)
+        val visionParts = com.example.service.PokerImageProcessor.createMultiresolutionVisionParts(bitmap)
+        val base64Images = visionParts.map { part ->
+            val stream = ByteArrayOutputStream()
+            part.compress(Bitmap.CompressFormat.JPEG, JPEG_COMPRESSION_QUALITY, stream)
+            Base64.encodeToString(stream.toByteArray(), Base64.NO_WRAP)
+        }
 
         var lastError: String? = null
 
@@ -283,18 +282,21 @@ class GeminiPokerRepository {
                                 add(buildJsonObject {
                                     put("text", prompt)
                                 })
-                                add(buildJsonObject {
-                                    put("inlineData", buildJsonObject {
-                                        put("mimeType", "image/jpeg")
-                                        put("data", base64Image)
+                                for (base64 in base64Images) {
+                                    add(buildJsonObject {
+                                        put("inlineData", buildJsonObject {
+                                            put("mimeType", "image/jpeg")
+                                            put("data", base64)
+                                        })
                                     })
-                                })
+                                }
                             })
                         })
                     })
                     put("generationConfig", buildJsonObject {
                         put("responseMimeType", "application/json")
-                        put("maxOutputTokens", 500)
+                        put("maxOutputTokens", 600)
+                        put("temperature", 0.1)
                     })
                 }
 
@@ -355,6 +357,7 @@ class GeminiPokerRepository {
 
                 if (!text.isNullOrBlank()) {
                     Log.d(TAG, "$modelName responded OK (${text.length} chars)")
+                    visionParts.forEach { if (it != bitmap && !it.isRecycled) it.recycle() }
                     return GeminiCallResult(text = text, modelUsed = modelName)
                 } else {
                     lastError = "Empty text in response"
@@ -374,6 +377,7 @@ class GeminiPokerRepository {
             }
         }
 
+        visionParts.forEach { if (it != bitmap && !it.isRecycled) it.recycle() }
         return GeminiCallResult(errorMessage = lastError ?: "Todos los modelos fallaron")
     }
 
