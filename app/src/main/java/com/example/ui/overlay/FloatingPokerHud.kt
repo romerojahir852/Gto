@@ -814,42 +814,57 @@ fun FloatingPokerHud(
                             color = state.gtoAction.bgTint,
                             border = androidx.compose.foundation.BorderStroke(1.2.dp, state.gtoAction.color)
                         ) {
-                            Row(
+                            Column(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(horizontal = 8.dp, vertical = 5.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
+                                    .padding(horizontal = 8.dp, vertical = 5.dp)
                             ) {
-                                Column {
-                                    Text(
-                                        text = "DECISIÓN GTO ÓPTIMA",
-                                        color = state.gtoAction.color.copy(alpha = 0.8f),
-                                        fontSize = 7.5.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        letterSpacing = 0.3.sp
-                                    )
-                                    Text(
-                                        text = state.fullGtoDecision.ifBlank { state.gtoAction.title },
-                                        color = state.gtoAction.color,
-                                        fontSize = 13.sp,
-                                        fontWeight = FontWeight.Black
-                                    )
-                                }
-
-                                Surface(
-                                    shape = CircleShape,
-                                    color = state.gtoAction.color,
-                                    modifier = Modifier.size(20.dp)
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Box(contentAlignment = Alignment.Center) {
-                                        Icon(
-                                            imageVector = Icons.Default.Speed,
-                                            contentDescription = null,
-                                            tint = Color.Black,
-                                            modifier = Modifier.size(12.dp)
+                                    Column {
+                                        Text(
+                                            text = "DECISIÓN GTO ÓPTIMA",
+                                            color = state.gtoAction.color.copy(alpha = 0.8f),
+                                            fontSize = 7.5.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            letterSpacing = 0.3.sp
+                                        )
+                                        Text(
+                                            text = state.fullGtoDecision.ifBlank { state.gtoAction.title },
+                                            color = state.gtoAction.color,
+                                            fontSize = 13.sp,
+                                            fontWeight = FontWeight.Black
                                         )
                                     }
+
+                                    Surface(
+                                        shape = CircleShape,
+                                        color = state.gtoAction.color,
+                                        modifier = Modifier.size(20.dp)
+                                    ) {
+                                        Box(contentAlignment = Alignment.Center) {
+                                            Icon(
+                                                imageVector = Icons.Default.Speed,
+                                                contentDescription = null,
+                                                tint = Color.Black,
+                                                modifier = Modifier.size(12.dp)
+                                            )
+                                        }
+                                    }
+                                }
+
+                                if (state.explicacion.isNotBlank()) {
+                                    Text(
+                                        text = state.explicacion,
+                                        color = Color(0xFFE2E8F0),
+                                        fontSize = 8.sp,
+                                        lineHeight = 11.sp,
+                                        fontWeight = FontWeight.Medium,
+                                        modifier = Modifier.padding(top = 3.dp)
+                                    )
                                 }
                             }
                         }

@@ -51,6 +51,9 @@ class GeminiPokerRepository {
      * Endpoint exclusivo Gemini 3.8 Flash según especificación estricta del usuario.
      */
     private val candidateModels = listOf(
+        "gemini-2.5-flash",
+        "gemini-2.0-flash",
+        "gemini-1.5-flash",
         "gemini-3.8-flash"
     )
 
@@ -143,77 +146,17 @@ class GeminiPokerRepository {
           "jugadores": 6,
           "dealer": "BTN",
           "miPosicion": "SB",
-          "outs": "Trio de Reyes",
-          "win": "72%",
-          "gto": "CALL 1x"
+          "apuestaRival": "4 BB",
+          "outs": "0 Outs (Sin proyectos limpios)",
+          "win": "12%",
+          "gto": "FOLD",
+          "explicacion": "Fold obligatorio. Tienes 9-alta sin proyectos de color ni escalera en un board mojado con 3 diamantes. Pagar 4 BB compromete el 33% de tu stack en un bote multiway."
         }
         IMPORTANT: "numCartasHero" MUST equal the actual count of cards in "cartas". "numCartasMesa" MUST equal the actual count of cards in "mesa".
         Suits: h=hearts ♥, d=diamonds ♦, c=clubs ♣, s=spades ♠.
         """.trimIndent()
     }
 
-
-    /**
-     * Punto 1,3: Fusion inteligente de resultados Gemini + OCR.
-     * Toma las cartas Hero del motor con mayor confianza y las comunitarias del que detecte mas.
-     */
-    private fun mergeGeminiAndOcr(gemini: HandState, ocr: HandState, latency: Long): HandState {
-        // Hero: preferir el que tenga exactamente 2 cartas; si ambos tienen 2, preferir Gemini
-        val bestHero = when {
-            gemini.cartasPropias.size == 2 && ocr.cartasPropias.size == 2 -> gemini.cartasPropias
-            gemini.cartasPropias.size == 2 -> gemini.cartasPropias
-            ocr.cartasPropias.size == 2 -> ocr.cartasPropias
-            gemini.cartasPropias.isNotEmpty() -> gemini.cartasPropias
-            else -> ocr.cartasPropias
-        }
-
-        // Board: preferir el que tenga MAS cartas (3,4,5). Si iguales, preferir Gemini.
-        val bestBoard = when {
-            gemini.cartasComunitarias.size > ocr.cartasComunitarias.size -> gemini.cartasComunitarias
-            ocr.cartasComunitarias.size > gemini.cartasComunitarias.size -> ocr.cartasComunitarias
-            gemini.cartasComunitarias.isNotEmpty() -> gemini.cartasComunitarias
-            else -> ocr.cartasComunitarias
-        }
-
-        // Validar unicidad: no puede haber cartas duplicadas entre Hero y Board
-        val heroSet = bestHero.map { "${it.rank}_${it.suit}" }.toSet()
-        val cleanBoard = bestBoard.filter { "${it.rank}_${it.suit}" !in heroSet }
-
-        val fusedFase = when (cleanBoard.size) {
-            0 -> "Preflop"
-            in 1..3 -> "Flop"
-            4 -> "Turn"
-            5 -> "River"
-            else -> "River"
-        }
-
-        val heroStr = if (bestHero.isNotEmpty()) bestHero.joinToString(" ") { it.displayString } else "?"
-        val boardStr = if (cleanBoard.isNotEmpty()) " | Mesa: ${cleanBoard.joinToString(" ") { it.displayString }}" else ""
-        val source = if (gemini.cartasComunitarias.size >= ocr.cartasComunitarias.size) "Gemini" else "Gemini+OCR"
-        val statusMsg = "\u2705 $source: $heroStr$boardStr \u2022 ${latency}ms"
-
-        Log.d("FUSION", "Gemini: Hero=${gemini.cartasPropias.map { it.displayString }} Board=${gemini.cartasComunitarias.map { it.displayString }}")
-        Log.d("FUSION", "OCR:    Hero=${ocr.cartasPropias.map { it.displayString }} Board=${ocr.cartasComunitarias.map { it.displayString }}")
-        Log.d("FUSION", "FUSED:  Hero=${bestHero.map { it.displayString }} Board=${cleanBoard.map { it.displayString }}")
-
-        // Usar GTO del motor Gemini si tiene resultado, sino del OCR
-        return gemini.copy(
-            fase = fusedFase,
-            cartasPropias = bestHero,
-            cartasComunitarias = cleanBoard,
-            bote = if (gemini.bote > 0) gemini.bote else ocr.bote,
-            jugadores = if (gemini.jugadores in 2..9) gemini.jugadores else ocr.jugadores,
-            posicion = if (gemini.posicion.isNotBlank()) gemini.posicion else ocr.posicion,
-            dealerPosition = if (gemini.dealerDetected) gemini.dealerPosition else ocr.dealerPosition,
-            dealerDetected = gemini.dealerDetected || ocr.dealerDetected,
-            outs = if (gemini.outs.isNotBlank() && gemini.outs != "?") gemini.outs else ocr.outs,
-            winRate = if (gemini.winRate.isNotBlank() && gemini.winRate != "?") gemini.winRate else ocr.winRate,
-            gtoAction = if (gemini.gtoAction != GtoAction.UNKNOWN) gemini.gtoAction else ocr.gtoAction,
-            gtoActionValue = if (gemini.gtoActionValue.isNotBlank()) gemini.gtoActionValue else ocr.gtoActionValue,
-            latencyMs = latency,
-            statusMessage = statusMsg
-        )
-    }
 
     private data class GeminiCallResult(
         val text: String? = null,
@@ -222,8 +165,8 @@ class GeminiPokerRepository {
     )
 
     /**
-     * Analyzes poker screen frame 100% on Dispatchers.IO.
-     * Combines Gemini Multimodal Cloud Vision with automatic On-Device Local OCR fallback.
+     * Motor Multimodal Quirúrgico Gemini Flash exclusivo.
+     * Analiza el frame con visión multimodal real (sin fallbacks destructivos a OCR local).
      */
     suspend fun analyzeHand(
         bitmap: Bitmap,
@@ -232,121 +175,98 @@ class GeminiPokerRepository {
     ): Result<HandState> = withContext(Dispatchers.IO) {
         val startTime = System.currentTimeMillis()
         val apiKey = ApiKeyManager.getApiKey(context)
-                var geminiFailureReason: String? = null
 
-        if (!apiKey.isNullOrBlank()) {
-            try {
-                val prompt = buildSurgicalPrompt(currentState)
-                val callResult = withTimeout(TIMEOUT_MS) {
-                    callGeminiFast(apiKey, prompt, bitmap)
-                }
-
-                val latency = System.currentTimeMillis() - startTime
-                val responseText = callResult.text
-
-                if (!responseText.isNullOrBlank()) {
-                    Log.d("GEMINI_DEBUG", "RAW AI RESPONSE (${callResult.modelUsed}): $responseText")
-                    val parsedState = parseSurgicalResponse(responseText, currentState, latency)
-                    val hasCards = parsedState.cartasPropias.isNotEmpty() || parsedState.cartasComunitarias.isNotEmpty()
-                    val hasTableInfo = (parsedState.jugadores in 2..9) || parsedState.bote > 0.0 || parsedState.dealerPosition.isNotBlank()
-
-                    if (hasCards || hasTableInfo) {
-                        val modelLabel = "Gemini 3.8 Flash"
-                        val cardsPart = if (hasCards) {
-                            val heroStr = if (parsedState.cartasPropias.isNotEmpty()) parsedState.cartasPropias.joinToString(" ") { it.displayString } else "—"
-                            val boardStr = if (parsedState.cartasComunitarias.isNotEmpty()) " | Mesa: ${parsedState.cartasComunitarias.joinToString(" ") { it.displayString }}" else ""
-                            "$heroStr$boardStr"
-                        } else {
-                            "Mesa: ${parsedState.jugadores}j · BTN: ${parsedState.dealerPosition}"
-                        }
-                        val statusMsg = "⚡ $modelLabel: $cardsPart · ${latency}ms"
-                        val finalParsed = parsedState.copy(statusMessage = statusMsg)
-                        PokerGameStateManager.updateIncremental(
-                            fase = finalParsed.fase,
-                            cartasPropias = finalParsed.cartasPropias,
-                            cartasComunitarias = finalParsed.cartasComunitarias,
-                            bote = finalParsed.bote,
-                            jugadores = finalParsed.jugadores,
-                            posicion = finalParsed.posicion,
-                            dealerPosition = finalParsed.dealerPosition,
-                            dealerDetected = finalParsed.dealerDetected,
-                            tablePositionsSummary = finalParsed.tablePositionsSummary,
-                            outs = finalParsed.outs,
-                            winRate = finalParsed.winRate,
-                            gtoAction = finalParsed.gtoAction,
-                            gtoActionValue = finalParsed.gtoActionValue,
-                            rawText = responseText,
-                            latencyMs = latency,
-                            isSimulation = false,
-                            statusMessage = statusMsg
-                        )
-                        // ------ PUNTO 1,3: FUSION GEMINI+OCR ------
-                        // Gemini OK. Ahora TAMBIEN ejecutar OCR local para fusionar mejores partes.
-                        val ocrState = try {
-                            com.example.service.LocalCardOcrDetector.detect(bitmap, currentState)
-                        } catch (e: Exception) {
-                            Log.w("FUSION", "OCR fusion failed: " + e.message)
-                            null
-                        }
-                        val fusedState = if (ocrState != null) {
-                            mergeGeminiAndOcr(finalParsed, ocrState, latency)
-                        } else {
-                            finalParsed
-                        }
-                        return@withContext Result.success(fusedState)
-                    }
-                } else if (!callResult.errorMessage.isNullOrBlank()) {
-                    geminiFailureReason = callResult.errorMessage
-                    Log.w("GEMINI_FALLBACK", "Gemini devolvió error: ${callResult.errorMessage}")
-                }
-            } catch (t: Throwable) {
-                geminiFailureReason = t.message ?: "Timeout"
-                Log.w("GEMINI_FALLBACK", "Gemini no completó (${t.message}), activando OCR local en dispositivo", t)
-            }
+        if (apiKey.isNullOrBlank()) {
+            val statusMsg = "⚠️ Se requiere API Key. Toca 🔑 arriba para configurarla."
+            PokerGameStateManager.updateIncremental(
+                statusMessage = statusMsg,
+                latencyMs = 0L,
+                isSimulation = false
+            )
+            return@withContext Result.failure(IllegalStateException(statusMsg))
         }
 
-        // MOTOR ON-DEVICE: Detección visual OCR local directa sobre el frame
-        Log.d("OCR_LOCAL", "Ejecutando escaneo visual OCR local en dispositivo")
-        val localState = com.example.service.LocalCardOcrDetector.detect(bitmap, currentState)
-        val finalStatus = if (apiKey.isNullOrBlank()) {
-            localState.statusMessage + " • 🔑 Toca para ingresar API Key"
-        } else if (!geminiFailureReason.isNullOrBlank()) {
-            val shortErr = if (geminiFailureReason.contains("400") || geminiFailureReason.contains("API key not valid", ignoreCase = true)) {
-                "API Key inválida"
-            } else if (geminiFailureReason.contains("404") || geminiFailureReason.contains("not found", ignoreCase = true)) {
-                "Gemini 3.8: 404 No disp."
-            } else if (geminiFailureReason.contains("429") || geminiFailureReason.contains("RESOURCE_EXHAUSTED", ignoreCase = true)) {
-                "Cuota agotada"
-            } else if (geminiFailureReason.contains("Timeout", ignoreCase = true)) {
-                "Timeout de red"
-            } else {
-                geminiFailureReason.take(20)
+        var geminiFailureReason: String? = null
+
+        try {
+            val prompt = buildSurgicalPrompt(currentState)
+            val callResult = withTimeout(TIMEOUT_MS) {
+                callGeminiFast(apiKey, prompt, bitmap)
             }
-            "${localState.statusMessage} • Nube: $shortErr"
+
+            val latency = System.currentTimeMillis() - startTime
+            val responseText = callResult.text
+
+            if (!responseText.isNullOrBlank()) {
+                Log.d("GEMINI_DEBUG", "RAW AI RESPONSE (${callResult.modelUsed}): $responseText")
+                val parsedState = parseSurgicalResponse(responseText, currentState, latency)
+                val hasCards = parsedState.cartasPropias.isNotEmpty() || parsedState.cartasComunitarias.isNotEmpty()
+
+                val modelLabel = "Gemini 3.8 Flash"
+                val cardsPart = if (hasCards) {
+                    val heroStr = if (parsedState.cartasPropias.isNotEmpty()) parsedState.cartasPropias.joinToString(" ") { it.displayString } else "—"
+                    val boardStr = if (parsedState.cartasComunitarias.isNotEmpty()) " | Mesa: ${parsedState.cartasComunitarias.joinToString(" ") { it.displayString }}" else ""
+                    "$heroStr$boardStr"
+                } else {
+                    "Mesa: ${parsedState.jugadores}j · BTN: ${parsedState.dealerPosition}"
+                }
+                val statusMsg = "⚡ $modelLabel: $cardsPart · ${latency}ms"
+                val finalParsed = parsedState.copy(statusMessage = statusMsg)
+
+                PokerGameStateManager.updateIncremental(
+                    fase = finalParsed.fase,
+                    cartasPropias = finalParsed.cartasPropias,
+                    cartasComunitarias = finalParsed.cartasComunitarias,
+                    bote = finalParsed.bote,
+                    apuestaRival = finalParsed.apuestaRival,
+                    jugadores = finalParsed.jugadores,
+                    posicion = finalParsed.posicion,
+                    dealerPosition = finalParsed.dealerPosition,
+                    dealerDetected = finalParsed.dealerDetected,
+                    tablePositionsSummary = finalParsed.tablePositionsSummary,
+                    outs = finalParsed.outs,
+                    winRate = finalParsed.winRate,
+                    gtoAction = finalParsed.gtoAction,
+                    gtoActionValue = finalParsed.gtoActionValue,
+                    explicacion = finalParsed.explicacion,
+                    rawText = responseText,
+                    latencyMs = latency,
+                    isSimulation = false,
+                    statusMessage = statusMsg
+                )
+
+                return@withContext Result.success(finalParsed)
+            } else if (!callResult.errorMessage.isNullOrBlank()) {
+                geminiFailureReason = callResult.errorMessage
+                Log.w("GEMINI_ERROR", "Gemini devolvió error: ${callResult.errorMessage}")
+            }
+        } catch (t: Throwable) {
+            geminiFailureReason = t.message ?: "Timeout de conexión"
+            Log.w("GEMINI_ERROR", "Fallo en llamada a Gemini: ${t.message}", t)
+        }
+
+        val latency = System.currentTimeMillis() - startTime
+        val shortErr = if (geminiFailureReason.isNullOrBlank()) {
+            "Respuesta vacía"
+        } else if (geminiFailureReason.contains("400") || geminiFailureReason.contains("API key not valid", ignoreCase = true)) {
+            "API Key inválida"
+        } else if (geminiFailureReason.contains("404") || geminiFailureReason.contains("not found", ignoreCase = true)) {
+            "Modelo no disponible"
+        } else if (geminiFailureReason.contains("429") || geminiFailureReason.contains("RESOURCE_EXHAUSTED", ignoreCase = true)) {
+            "Cuota agotada"
+        } else if (geminiFailureReason.contains("Timeout", ignoreCase = true)) {
+            "Tiempo de espera agotado"
         } else {
-            localState.statusMessage
+            geminiFailureReason.take(30)
         }
-        val finalResult = localState.copy(statusMessage = finalStatus)
 
+        val errorStatus = "⚠️ Error Gemini: $shortErr. Toca 🔑 para revisar tu clave."
         PokerGameStateManager.updateIncremental(
-            fase = finalResult.fase,
-            cartasPropias = finalResult.cartasPropias,
-            cartasComunitarias = finalResult.cartasComunitarias,
-            bote = finalResult.bote,
-            jugadores = finalResult.jugadores,
-            posicion = finalResult.posicion,
-            dealerPosition = finalResult.dealerPosition,
-            dealerDetected = finalResult.dealerDetected,
-            tablePositionsSummary = finalResult.tablePositionsSummary,
-            outs = finalResult.outs,
-            winRate = finalResult.winRate,
-            gtoAction = finalResult.gtoAction,
-            gtoActionValue = finalResult.gtoActionValue,
-            latencyMs = finalResult.latencyMs,
-            isSimulation = false,
-            statusMessage = finalStatus
+            statusMessage = errorStatus,
+            latencyMs = latency,
+            isSimulation = false
         )
-        return@withContext Result.success(finalResult)
+        return@withContext Result.failure(IllegalStateException(errorStatus))
     }
 
     /**
@@ -419,11 +339,8 @@ class GeminiPokerRepository {
                         })
                         put("generationConfig", buildJsonObject {
                             put("responseMimeType", "application/json")
+                            put("temperature", 0.1)
                             put("maxOutputTokens", 2048)
-                            put("thinkingConfig", buildJsonObject {
-                                put("thinking_level", "LOW")
-                                put("thinkingLevel", "LOW")
-                            })
                         })
                     }
 
@@ -579,7 +496,9 @@ class GeminiPokerRepository {
         var detectedDealer = currentState.dealerPosition
         var detectedMyPos = currentState.posicion
         var detectedBote = currentState.bote
+        var detectedApuesta = currentState.apuestaRival
         var parsedFase: String? = null
+        var explicacion = ""
 
         try {
             val cleanText = rawText
@@ -652,7 +571,16 @@ class GeminiPokerRepository {
                 val rawWin = value.trim()
                 winRate = if (rawWin.endsWith("%") || rawWin == "-") rawWin else "$rawWin%"
             }
-            
+
+            (jsonObj["apuestaRival"] ?: jsonObj["rivalBet"] ?: jsonObj["apuesta"])?.jsonPrimitive?.contentOrNull?.let { value ->
+                val clean = value.replace(Regex("[^0-9.]"), "").toDoubleOrNull()
+                if (clean != null && clean > 0.0) detectedApuesta = clean
+            }
+
+            (jsonObj["explicacion"] ?: jsonObj["consejo"] ?: jsonObj["explanation"])?.jsonPrimitive?.contentOrNull?.let { value ->
+                if (value.isNotBlank()) explicacion = value.trim()
+            }
+
             jsonObj["gto"]?.jsonPrimitive?.contentOrNull?.let { value ->
                 val rawGto = value.trim()
                 gtoAction = GtoAction.fromString(rawGto)
@@ -663,16 +591,16 @@ class GeminiPokerRepository {
                 } else {
                     ""
                 }
+            }
 
-            // Punto 30: Validar numCartasMesa y numCartasHero
+            // Validar numCartasMesa y numCartasHero
             val numHero = (jsonObj["numCartasHero"])?.jsonPrimitive?.intOrNull
             val numMesa = (jsonObj["numCartasMesa"])?.jsonPrimitive?.intOrNull
             if (numMesa != null && numMesa != communityCards.size && numMesa in 3..5) {
-                Log.w(TAG, "numCartasMesa=$numMesa but parsed ${communityCards.size} cards � Gemini may have missed cards")
+                Log.w(TAG, "numCartasMesa=$numMesa but parsed ${communityCards.size} cards")
             }
             if (numHero != null && numHero != holeCards.size && numHero == 2) {
-                Log.w(TAG, "numCartasHero=$numHero but parsed ${holeCards.size} cards � re-check Hero detection")
-            }
+                Log.w(TAG, "numCartasHero=$numHero but parsed ${holeCards.size} cards")
             }
         } catch (e: Exception) {
             Log.e(TAG, "Error parsing JSON response: $rawText", e)
@@ -697,7 +625,7 @@ class GeminiPokerRepository {
             myPos = detectedMyPos
         )
 
-        if (gtoAction == GtoAction.UNKNOWN && holeCards.isNotEmpty()) {
+        if (holeCards.isNotEmpty()) {
             val engineDecision = PokerGtoEngine.calculate(
                 holeCards = holeCards,
                 board = communityCards,
@@ -705,12 +633,17 @@ class GeminiPokerRepository {
                 posicion = detectedMyPos,
                 fase = detectedFase,
                 bote = detectedBote,
-                apuestaRival = currentState.apuestaRival
+                apuestaRival = detectedApuesta
             )
-            gtoAction = engineDecision.action
-            if (gtoActionValue.isBlank()) gtoActionValue = engineDecision.actionValue
-            if (winRate == "—" || winRate.isBlank()) winRate = engineDecision.winRate
-            if (outs == "—" || outs.isBlank()) outs = engineDecision.outs
+            if (gtoAction == GtoAction.UNKNOWN) {
+                gtoAction = engineDecision.action
+                if (gtoActionValue.isBlank()) gtoActionValue = engineDecision.actionValue
+                if (winRate == "—" || winRate.isBlank()) winRate = engineDecision.winRate
+                if (outs == "—" || outs.isBlank()) outs = engineDecision.outs
+            }
+            if (explicacion.isBlank()) {
+                explicacion = engineDecision.explanation
+            }
         }
 
         val tablePositionsSummary = GTOStateManager.getPositionsSummary(detectedPlayers, detectedMyPos)
@@ -718,6 +651,7 @@ class GeminiPokerRepository {
         return currentState.copy(
             fase = detectedFase,
             bote = detectedBote,
+            apuestaRival = detectedApuesta,
             cartasPropias = holeCards,
             cartasComunitarias = communityCards,
             jugadores = detectedPlayers,
@@ -729,6 +663,7 @@ class GeminiPokerRepository {
             winRate = winRate,
             gtoAction = gtoAction,
             gtoActionValue = gtoActionValue,
+            explicacion = explicacion,
             rawText = rawText,
             latencyMs = latencyMs,
             isLoading = false,

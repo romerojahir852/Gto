@@ -79,12 +79,12 @@ object PokerImageProcessor {
             }
             parts.add(finalBoard)
 
-            // 3. Micro-Zoom Cartas Hero Asiento Inferior (GGPoker, PokerBros, PokerStars tapete)
-            // x: 15% a 85% del ancho, y: 64% a 95% del alto (zona quirúrgica donde Hero tiene sus 2 cartas)
-            val heroLeft = (width * 0.12f).toInt().coerceIn(0, width - 1)
-            val heroTop = (height * 0.60f).toInt().coerceIn(0, height - 1)
-            val heroWidth = (width * 0.76f).toInt().coerceIn(10, width - heroLeft)
-            val heroHeight = (height * 0.37f).toInt().coerceIn(10, height - heroTop)
+            // 3. Micro-Zoom Cartas Hero Asiento Inferior (GGPoker, PokerBros, PokerStars tapete, 6-max esquinas)
+            // x: 1% a 99% del ancho, y: 58% a 98% del alto (cubre a Hero tanto al centro como en esquinas inferiores)
+            val heroLeft = (width * 0.01f).toInt().coerceIn(0, width - 1)
+            val heroTop = (height * 0.58f).toInt().coerceIn(0, height - 1)
+            val heroWidth = (width * 0.98f).toInt().coerceIn(10, width - heroLeft)
+            val heroHeight = (height * 0.40f).toInt().coerceIn(10, height - heroTop)
 
             val rawHero = Bitmap.createBitmap(source, heroLeft, heroTop, heroWidth, heroHeight)
             val enhancedHero = enhanceContrast(rawHero, contrast = 1.25f, brightness = 8f)

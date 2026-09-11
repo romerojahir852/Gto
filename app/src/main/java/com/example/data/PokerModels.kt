@@ -202,7 +202,8 @@ data class HandState(
     val posicion: String = "BTN",
     val dealerPosition: String = "BTN",
     val dealerDetected: Boolean = false,
-    val tablePositionsSummary: String = "BTN (Dealer) â€¢ SB â€¢ BB â€¢ UTG â€¢ MP â€¢ CO"
+    val tablePositionsSummary: String = "BTN (Dealer) â€¢ SB â€¢ BB â€¢ UTG â€¢ MP â€¢ CO",
+    val explicacion: String = ""
 ) {
     val displayBote: String
         get() = when (bettingUnit) {
@@ -382,16 +383,17 @@ object PokerGameStateManager {
         posicion: String? = null,
         dealerPosition: String? = null,
         dealerDetected: Boolean? = null,
-        tablePositionsSummary: String? = null
+        tablePositionsSummary: String? = null,
+        explicacion: String? = null
     ) {
         _handState.update { current ->
             val newHero = cartasPropias ?: current.cartasPropias
             val heroUnchanged = current.cartasPropias.isNotEmpty() && newHero.isNotEmpty() &&
                 current.cartasPropias.map { "${it.rank}_${it.suit}" }.toSet() == newHero.map { "${it.rank}_${it.suit}" }.toSet()
 
-            // ------ MEMORIA ACUMULATIVA + FASE MONOTÓNICA (Puntos 7, 8, 10) ------
+            // ------ MEMORIA ACUMULATIVA + FASE MONOTï¿½NICA (Puntos 7, 8, 10) ------
 
-            // Punto 8: Detección de cambio de mano (Hero cambió completamente)
+            // Punto 8: Detecciï¿½n de cambio de mano (Hero cambiï¿½ completamente)
             val heroCompletelyChanged = !heroUnchanged && current.cartasPropias.isNotEmpty() && newHero.isNotEmpty() &&
                 current.cartasPropias.none { old -> newHero.any { n -> old.rank == n.rank } }
 
@@ -400,15 +402,15 @@ object PokerGameStateManager {
                 cartasComunitarias ?: emptyList()
             } else if (cartasComunitarias != null) {
                 when {
-                    // Si el nuevo scan no encontró cartas de mesa pero Hero no cambió, conservar
+                    // Si el nuevo scan no encontrï¿½ cartas de mesa pero Hero no cambiï¿½, conservar
                     cartasComunitarias.isEmpty() && heroUnchanged && current.cartasComunitarias.isNotEmpty() ->
                         current.cartasComunitarias
 
-                    // Punto 7: Fase MONOTÓNICA — si tiene MENOS cartas que el actual, conservar
+                    // Punto 7: Fase MONOTï¿½NICA ï¿½ si tiene MENOS cartas que el actual, conservar
                     cartasComunitarias.size < current.cartasComunitarias.size && heroUnchanged ->
                         current.cartasComunitarias
 
-                    // Punto 10: MERGE INCREMENTAL — unir cartas nuevas con anteriores
+                    // Punto 10: MERGE INCREMENTAL ï¿½ unir cartas nuevas con anteriores
                     cartasComunitarias.isNotEmpty() && current.cartasComunitarias.isNotEmpty() && heroUnchanged -> {
                         val currentSet = current.cartasComunitarias.map { "${it.rank}_${it.suit}" }.toSet()
                         val newSet = cartasComunitarias.map { "${it.rank}_${it.suit}" }.toSet()
@@ -465,6 +467,7 @@ object PokerGameStateManager {
                 dealerPosition = dealerPosition ?: current.dealerPosition,
                 dealerDetected = dealerDetected ?: current.dealerDetected,
                 tablePositionsSummary = tablePositionsSummary ?: current.tablePositionsSummary,
+                explicacion = explicacion ?: current.explicacion,
                 isLoading = false,
                 isExpanded = true
             )

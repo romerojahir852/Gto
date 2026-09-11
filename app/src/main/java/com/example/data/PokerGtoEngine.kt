@@ -52,7 +52,7 @@ object PokerGtoEngine {
         return if (board.isEmpty() && effectiveFase.equals("Preflop", ignoreCase = true)) {
             calculatePreflop(holeCards, jugadores, posicion)
         } else {
-            calculatePostflop(holeCards, board, jugadores, posicion, effectiveFase)
+            calculatePostflop(holeCards, board, jugadores, posicion, effectiveFase, bote, apuestaRival)
         }
     }
 
@@ -125,7 +125,9 @@ object PokerGtoEngine {
         board: List<PokerCard>,
         jugadores: Int,
         posicion: String,
-        fase: String
+        fase: String,
+        bote: Double = 150.0,
+        apuestaRival: Double = 0.0
     ): GtoDecision {
         val allCards = holeCards + board
         val holeRanks = holeCards.map { rankValue(it.rank) }
@@ -297,9 +299,17 @@ object PokerGtoEngine {
             }
             else -> {
                 if (fase.equals("River", ignoreCase = true)) {
-                    GtoDecision(GtoAction.FOLD, "", "10%", "0 Outs", "Sin mano en el River")
+                    if (apuestaRival > 0.0) {
+                        GtoDecision(GtoAction.FOLD, "", "0%", "0 Outs", "Fold obligatorio. Sin mano completada en el River ante apuesta.")
+                    } else {
+                        GtoDecision(GtoAction.CHECK, "", "10%", "0 Outs", "Sin mano en el River. Pasar hasta showdown.")
+                    }
                 } else {
-                    GtoDecision(GtoAction.CHECK, "", "25%", "0 Outs", "Pasa o Foldea ante apuesta")
+                    if (apuestaRival > 0.0) {
+                        GtoDecision(GtoAction.FOLD, "", "12%", "0 Outs", "Fold obligatorio. Carta alta sin proyectos limpios de color ni escalera ante apuesta.")
+                    } else {
+                        GtoDecision(GtoAction.CHECK, "", "25%", "0 Outs", "Pasar para ver la siguiente carta gratis o foldear ante apuesta.")
+                    }
                 }
             }
         }
