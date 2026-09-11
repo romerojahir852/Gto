@@ -37,8 +37,8 @@ class GeminiPokerRepository {
 
     companion object {
         private const val TAG = "GeminiPokerRepo"
-        // 14000ms: tiempo óptimo para respuesta en redes móviles con latencia
-        private const val TIMEOUT_MS = 14000L
+        // 25000ms: tiempo óptimo para respuesta en redes móviles con latencia
+        private const val TIMEOUT_MS = 25000L
         private const val MAX_IMAGE_DIMENSION = 960
         private const val JPEG_COMPRESSION_QUALITY = 88
         private const val ENDPOINT_BASE = "https://generativelanguage.googleapis.com/v1beta/models"
@@ -48,13 +48,13 @@ class GeminiPokerRepository {
     }
 
     /**
-     * Endpoint exclusivo Gemini 3.8 Flash según especificación estricta del usuario.
+     * Modelos activos en Google AI Studio (2026).
+     * gemini-3.8-flash es el modelo principal especificado por el usuario.
      */
     private val candidateModels = listOf(
-        "gemini-2.5-flash",
-        "gemini-2.0-flash",
-        "gemini-1.5-flash",
-        "gemini-3.8-flash"
+        "gemini-3.8-flash",
+        "gemini-flash-latest",
+        "gemini-3.6-flash"
     )
 
     /**
@@ -63,8 +63,8 @@ class GeminiPokerRepository {
     private val ktorClient by lazy {
         HttpClient(Android) {
             engine {
-                connectTimeout = 10_000
-                socketTimeout = 14_000
+                connectTimeout = 15_000
+                socketTimeout = 25_000
             }
             expectSuccess = false
         }

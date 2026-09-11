@@ -444,20 +444,31 @@ fun FloatingPokerHud(
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Column(
-                                modifier = Modifier.padding(6.dp),
-                                verticalArrangement = Arrangement.spacedBy(4.dp)
+                                modifier = Modifier.padding(7.dp),
+                                verticalArrangement = Arrangement.spacedBy(5.dp)
                             ) {
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
                                     horizontalArrangement = Arrangement.SpaceBetween,
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Text(
-                                        text = "🔑 Clave Gemini Flash",
-                                        color = Color.White,
-                                        fontSize = 10.sp,
-                                        fontWeight = FontWeight.Bold
-                                    )
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                    ) {
+                                        Text(
+                                            text = "🔑 Clave Gemini Flash",
+                                            color = Color.White,
+                                            fontSize = 10.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                        Text(
+                                            text = if (com.example.data.ApiKeyManager.hasApiKey(context)) "(${com.example.data.ApiKeyManager.getMaskedKey(context)})" else "(Sin clave)",
+                                            color = Color(0xFF00E676),
+                                            fontSize = 8.5.sp,
+                                            fontWeight = FontWeight.Medium
+                                        )
+                                    }
                                     IconButton(
                                         onClick = { showApiKeyDialog = false },
                                         modifier = Modifier.size(16.dp)
@@ -470,32 +481,69 @@ fun FloatingPokerHud(
                                         )
                                     }
                                 }
+                                Text(
+                                    text = "Pega aquí tu clave de Google AI Studio (empieza con AIzaSy... o AQ...).",
+                                    color = Color(0xFF94A3B8),
+                                    fontSize = 7.5.sp,
+                                    lineHeight = 10.sp
+                                )
                                 androidx.compose.material3.OutlinedTextField(
                                     value = enteredKey,
                                     onValueChange = { enteredKey = it },
-                                    placeholder = { Text("AIzaSy...", fontSize = 9.sp, color = Color.Gray) },
+                                    placeholder = { Text("AIzaSy... o AQ...", fontSize = 9.sp, color = Color(0xFF64748B)) },
                                     singleLine = true,
+                                    textStyle = androidx.compose.ui.text.TextStyle(
+                                        color = Color.White,
+                                        fontSize = 9.5.sp,
+                                        fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
+                                    ),
+                                    colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
+                                        focusedTextColor = Color.White,
+                                        unfocusedTextColor = Color.White,
+                                        focusedBorderColor = Color(0xFF00E676),
+                                        unfocusedBorderColor = Color(0xFF334155),
+                                        cursorColor = Color(0xFF00E676)
+                                    ),
                                     modifier = Modifier.fillMaxWidth()
                                 )
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Surface(
-                                        shape = RoundedCornerShape(3.dp),
-                                        color = Color(0xFF1E293B),
-                                        modifier = Modifier.clickable {
-                                            val clip = clipboardManager.getText()?.text
-                                            if (!clip.isNullOrBlank()) enteredKey = clip.trim()
+                                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                        Surface(
+                                            shape = RoundedCornerShape(3.dp),
+                                            color = Color(0xFF1E293B),
+                                            modifier = Modifier.clickable {
+                                                val clip = clipboardManager.getText()?.text
+                                                if (!clip.isNullOrBlank()) enteredKey = clip.trim()
+                                            }
+                                        ) {
+                                            Text(
+                                                text = "📋 Pegar",
+                                                color = Color(0xFF38BDF8),
+                                                fontSize = 8.5.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                            )
                                         }
-                                    ) {
-                                        Text(
-                                            text = "Pegar",
-                                            color = Color(0xFF38BDF8),
-                                            fontSize = 8.5.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                                        )
+                                        Surface(
+                                            shape = RoundedCornerShape(3.dp),
+                                            color = Color(0xFF2B1616),
+                                            border = androidx.compose.foundation.BorderStroke(0.6.dp, Color(0xFF7F1D1D)),
+                                            modifier = Modifier.clickable {
+                                                enteredKey = ""
+                                            }
+                                        ) {
+                                            Text(
+                                                text = "🗑️ Limpiar",
+                                                color = Color(0xFFFCA5A5),
+                                                fontSize = 8.5.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                            )
+                                        }
                                     }
                                     Surface(
                                         shape = RoundedCornerShape(3.dp),
@@ -503,16 +551,16 @@ fun FloatingPokerHud(
                                         modifier = Modifier.clickable {
                                             if (enteredKey.isNotBlank()) {
                                                 com.example.data.ApiKeyManager.saveApiKey(context, enteredKey)
-                                                PokerGameStateManager.updateStatus("✅ API Key guardada")
+                                                PokerGameStateManager.updateStatus("✅ API Key guardada: ${com.example.data.ApiKeyManager.getMaskedKey(context)}")
                                             } else {
                                                 com.example.data.ApiKeyManager.clearApiKey(context)
-                                                PokerGameStateManager.updateStatus("⚡ Modo OCR Local activo")
+                                                PokerGameStateManager.updateStatus("⚠️ API Key eliminada")
                                             }
                                             showApiKeyDialog = false
                                         }
                                     ) {
                                         Text(
-                                            text = "Guardar",
+                                            text = "💾 Guardar",
                                             color = Color.Black,
                                             fontSize = 8.5.sp,
                                             fontWeight = FontWeight.Black,
