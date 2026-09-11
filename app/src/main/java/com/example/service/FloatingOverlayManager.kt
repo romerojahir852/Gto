@@ -131,6 +131,9 @@ class FloatingOverlayManager(
                             onCloseCloud = {
                                 closeCloud()
                             },
+                            onStopService = {
+                                stopServiceAndExit()
+                            },
                             onRequestFocus = { needsFocus ->
                                 setOverlayFocusable(needsFocus)
                             }
@@ -189,6 +192,14 @@ class FloatingOverlayManager(
      */
     fun closeCloud() {
         PokerGameStateManager.setExpanded(false)
+    }
+
+    /**
+     * Cierra el HUD y detiene completamente el Foreground Service y la captura.
+     */
+    fun stopServiceAndExit() {
+        hideOverlay()
+        ScreenCaptureService.stopService(context)
     }
 
     /**

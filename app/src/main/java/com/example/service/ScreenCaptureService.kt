@@ -89,6 +89,13 @@ class ScreenCaptureService : Service() {
         fun updateOverlayResult(result: com.example.data.PokerAnalysisResult) {
             instance?.updateOverlayResult(result)
         }
+
+        fun stopService(context: Context) {
+            val intent = Intent(context, ScreenCaptureService::class.java).apply {
+                action = ACTION_STOP
+            }
+            context.startService(intent)
+        }
     }
 
     private var overlayManager: FloatingOverlayManager? = null
@@ -243,11 +250,15 @@ class ScreenCaptureService : Service() {
                 try {
                     img = reader.acquireLatestImage()
                     if (img != null) {
-                        val bmp = imageToBitmap(img)
-                        if (bmp != null) {
-                            lastCapturedBitmap = bmp
-                            val waiter = pendingFrameDeferred
-                            if (waiter != null && !waiter.isCompleted) {
+                        val waiter = pendingFrameDeferred
+                        if (waiter != null && !waiter.isCompleted) {
+                            val bmp = imageToBitmap(img)
+                            if (bmp != null) {
+                                val old = lastCapturedBitmap
+                                lastCapturedBitmap = bmp
+                                if (old != null && old != bmp && !old.isRecycled) {
+                                    old.recycle()
+                                }
                                 pendingFrameDeferred = null
                                 waiter.complete(bmp)
                             }
@@ -528,6 +539,16 @@ class ScreenCaptureService : Service() {
             Log.e(TAG, "Error stopping mediaProjection", e)
         } finally {
             mediaProjection = null
+        }
+
+        try {
+            val old = lastCapturedBitmap
+            lastCapturedBitmap = null
+            if (old != null && !old.isRecycled) {
+                old.recycle()
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Error recycling last bitmap", e)
         }
 
         try {

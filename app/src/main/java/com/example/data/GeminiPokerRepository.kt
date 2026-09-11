@@ -5,16 +5,14 @@ import android.graphics.BitmapFactory
 import android.util.Base64
 import android.util.Log
 import com.example.BuildConfig
-import io.ktor.client.HttpClient
-import io.ktor.client.engine.android.Android
-import io.ktor.client.request.headers
-import io.ktor.client.request.post
-import io.ktor.client.request.setBody
-import io.ktor.client.statement.bodyAsText
-import io.ktor.http.ContentType
-import io.ktor.http.contentType
-import io.ktor.client.plugins.HttpRequestTimeoutException
-import io.ktor.client.plugins.ResponseException
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
+import java.io.IOException
+import java.net.SocketTimeoutException
+import java.net.UnknownHostException
+import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.withContext
@@ -53,21 +51,21 @@ class GeminiPokerRepository {
      */
     private val candidateModels = listOf(
         "gemini-3.8-flash",
-        "gemini-flash-latest",
-        "gemini-3.6-flash"
+        "gemini-2.5-flash",
+        "gemini-flash-latest"
     )
 
     /**
-     * Ktor HTTP client con timeouts optimizados para baja latencia en redes móviles.
+     * OkHttp client con timeouts optimizados para baja latencia en redes móviles.
+     * Cero dependencias complejas, máxima estabilidad sin conflictos de classloader.
      */
-    private val ktorClient by lazy {
-        HttpClient(Android) {
-            engine {
-                connectTimeout = 15_000
-                socketTimeout = 25_000
-            }
-            expectSuccess = false
-        }
+    private val okHttpClient by lazy {
+        OkHttpClient.Builder()
+            .connectTimeout(15, TimeUnit.SECONDS)
+            .readTimeout(25, TimeUnit.SECONDS)
+            .writeTimeout(25, TimeUnit.SECONDS)
+            .retryOnConnectionFailure(true)
+            .build()
     }
 
     private val json = Json {
@@ -359,18 +357,20 @@ class GeminiPokerRepository {
                         })
                     }
 
-                    val response = ktorClient.post(
-                        "$ENDPOINT_BASE/$modelName:generateContent?key=$apiKey"
-                    ) {
-                        headers {
-                            append("x-goog-api-key", apiKey)
-                        }
-                        contentType(ContentType.Application.Json)
-                        setBody(requestBody.toString())
-                    }
+                    val mediaType = "application/json; charset=utf-8".toMediaType()
+                    val requestBodyOk = requestBody.toString().toRequestBody(mediaType)
+                    val request = Request.Builder()
+                        .url("$ENDPOINT_BASE/$modelName:generateContent?key=$apiKey")
+                        .addHeader("x-goog-api-key", apiKey)
+                        .post(requestBodyOk)
+                        .build()
 
-                    val statusCode = response.status.value
-                    val body = response.bodyAsText()
+                    val (statusCode, body) = withContext(Dispatchers.IO) {
+                        val response = okHttpClient.newCall(request).execute()
+                        response.use { resp ->
+                            Pair(resp.code, resp.body?.string().orEmpty())
+                        }
+                    }
 
                     if (statusCode !in 200..299) {
                         lastError = "HTTP $statusCode: ${body.take(180)}"
@@ -430,13 +430,15 @@ class GeminiPokerRepository {
                         lastError = "Empty text in response"
                         Log.w(TAG, "$modelName returned empty text. Body: ${body.take(200)}")
                     }
-                } catch (e: ResponseException) {
-                    val code = e.response.status.value
-                    lastError = "HTTP $code: ${e.message?.take(80)}"
-                    Log.w(TAG, "$modelName ResponseException: $lastError", e)
-                } catch (e: HttpRequestTimeoutException) {
-                    lastError = "Timeout HTTP"
+                } catch (e: SocketTimeoutException) {
+                    lastError = "Tiempo de espera agotado"
                     Log.w(TAG, "$modelName timeout", e)
+                } catch (e: UnknownHostException) {
+                    lastError = "Sin conexión a internet (DNS)"
+                    Log.w(TAG, "$modelName unknown host", e)
+                } catch (e: IOException) {
+                    lastError = "Error de red: ${e.message ?: e.javaClass.simpleName}"
+                    Log.w(TAG, "$modelName network error", e)
                 } catch (t: Throwable) {
                     val msg = t.message ?: t.javaClass.simpleName
                     lastError = msg

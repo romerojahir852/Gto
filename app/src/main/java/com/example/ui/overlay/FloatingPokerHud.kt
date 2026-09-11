@@ -30,6 +30,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.Key
+import androidx.compose.material.icons.filled.PowerSettingsNew
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Settings
@@ -86,6 +87,7 @@ fun FloatingPokerHud(
     onDrag: (Offset) -> Unit,
     onTriggerClick: () -> Unit,
     onCloseCloud: () -> Unit,
+    onStopService: () -> Unit = {},
     onRequestFocus: (Boolean) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
@@ -403,6 +405,20 @@ fun FloatingPokerHud(
                                     imageVector = Icons.Default.Close,
                                     contentDescription = "Ocultar nube",
                                     tint = Color(0xFF9CA3AF),
+                                    modifier = Modifier.size(14.dp)
+                                )
+                            }
+
+                            IconButton(
+                                onClick = onStopService,
+                                modifier = Modifier
+                                    .size(20.dp)
+                                    .testTag("floating_exit_button")
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.PowerSettingsNew,
+                                    contentDescription = "Cerrar app y detener servicio",
+                                    tint = Color(0xFFFF5252),
                                     modifier = Modifier.size(14.dp)
                                 )
                             }
@@ -734,6 +750,35 @@ fun FloatingPokerHud(
                                                 )
                                             }
                                         }
+                                    }
+                                }
+
+                                Spacer(modifier = Modifier.height(3.dp))
+                                Surface(
+                                    shape = RoundedCornerShape(3.dp),
+                                    color = Color(0xFF7F1D1D),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable { onStopService() }
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(vertical = 3.dp, horizontal = 6.dp),
+                                        horizontalArrangement = Arrangement.Center,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Icon(
+                                            Icons.Default.PowerSettingsNew,
+                                            contentDescription = null,
+                                            tint = Color.White,
+                                            modifier = Modifier.size(9.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text(
+                                            "Detener HUD y cerrar app",
+                                            color = Color.White,
+                                            fontSize = 8.5.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
                                     }
                                 }
                             }

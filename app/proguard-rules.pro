@@ -21,18 +21,11 @@
 #-renamesourcefileattribute SourceFile
 
 # ===================================================================
-# KTOR & HTTP CLIENT PROGUARD / R8 RULES
-# Prevents R8 from stripping io.ktor classes, interfaces, and plugins
-# (such as io.ktor.client.plugins.HttpTimeout) used by Google AI SDK
+# OKHTTP PROGUARD / R8 RULES
 # ===================================================================
--keep class io.ktor.** { *; }
--keep interface io.ktor.** { *; }
--dontwarn io.ktor.**
-
-# Preserve Ktor client plugins specifically
--keep class io.ktor.client.plugins.** { *; }
-
-# Google Generative AI SDK reflection & serialization rules
--keep class com.google.ai.client.generativeai.** { *; }
--dontwarn com.google.ai.client.generativeai.**
+-dontwarn okhttp3.**
+-dontwarn okio.**
+-keep class okhttp3.** { *; }
+-keep interface okhttp3.** { *; }
+-dontwarn javax.annotation.**
 
