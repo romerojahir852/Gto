@@ -79,12 +79,12 @@ object PokerImageProcessor {
             }
             parts.add(finalBoard)
 
-            // 3. Micro-Zoom Cartas Hero (Mitad inferior completa para abarcar asientos esquineros como Jr699 y centrales)
-            // x: 0% a 100% del ancho, y: 62% a 97% del alto
-            val heroLeft = 0
-            val heroTop = (height * 0.62f).toInt().coerceIn(0, height - 1)
-            val heroWidth = width
-            val heroHeight = (height * 0.35f).toInt().coerceIn(10, height - heroTop)
+            // 3. Micro-Zoom Cartas Hero Asiento Inferior (GGPoker, PokerBros, PokerStars tapete)
+            // x: 15% a 85% del ancho, y: 64% a 95% del alto (zona quirúrgica donde Hero tiene sus 2 cartas)
+            val heroLeft = (width * 0.15f).toInt().coerceIn(0, width - 1)
+            val heroTop = (height * 0.64f).toInt().coerceIn(0, height - 1)
+            val heroWidth = (width * 0.70f).toInt().coerceIn(10, width - heroLeft)
+            val heroHeight = (height * 0.31f).toInt().coerceIn(10, height - heroTop)
 
             val rawHero = Bitmap.createBitmap(source, heroLeft, heroTop, heroWidth, heroHeight)
             val enhancedHero = enhanceContrast(rawHero, contrast = 1.25f, brightness = 8f)
@@ -103,7 +103,34 @@ object PokerImageProcessor {
             }
             parts.add(finalHero)
 
-            Log.d(TAG, "Successfully generated 3 lightweight vision parts: Macro, BoardZoom, HeroZoom")
+            // 4. Micro-Zoom Píldora Superior (PokerStars, BC Poker)
+            // x: 3% a 44% del ancho, y: 3% a 14% del alto
+            val pillLeft = (width * 0.03f).toInt().coerceIn(0, width - 1)
+            val pillTop = (height * 0.03f).toInt().coerceIn(0, height - 1)
+            val pillWidth = (width * 0.41f).toInt().coerceIn(10, width - pillLeft)
+            val pillHeight = (height * 0.11f).toInt().coerceIn(10, height - pillTop)
+
+            try {
+                val rawPill = Bitmap.createBitmap(source, pillLeft, pillTop, pillWidth, pillHeight)
+                val enhancedPill = enhanceContrast(rawPill, contrast = 1.30f, brightness = 10f)
+                if (enhancedPill != rawPill) rawPill.recycle()
+
+                val finalPill = if (maxOf(enhancedPill.width, enhancedPill.height) > 360) {
+                    val scale = 360f / maxOf(enhancedPill.width, enhancedPill.height).toFloat()
+                    val targetW = (enhancedPill.width * scale).toInt().coerceAtLeast(1)
+                    val targetH = (enhancedPill.height * scale).toInt().coerceAtLeast(1)
+                    val scaled = Bitmap.createScaledBitmap(enhancedPill, targetW, targetH, true)
+                    if (scaled != enhancedPill) enhancedPill.recycle()
+                    scaled
+                } else {
+                    enhancedPill
+                }
+                parts.add(finalPill)
+            } catch (e: Exception) {
+                // Top pill es opcional para salas como GGPoker/PokerBros que no la tienen
+            }
+
+            Log.d(TAG, "Successfully generated lightweight vision parts (Macro, BoardZoom, HeroBottomZoom, TopPillZoom)")
         } catch (e: Exception) {
             Log.e(TAG, "Error generating vision parts, falling back to original bitmap", e)
             if (parts.isEmpty()) parts.add(source)

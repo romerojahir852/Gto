@@ -55,7 +55,7 @@ object LocalCardOcrDetector {
 
             var state = parseVisionText(visionText, bitmap, currentState, pass1Latency)
 
-            // Paso 2A: Si no se detectaron las 2 cartas de Hero, escanear la Píldora Digital Superior con micro-crop 2.5x
+            // Paso 2A: Si no se detectaron las 2 cartas de Hero, escanear la Píldora Digital Superior (PokerStars / BCPoker)
             if (state.cartasPropias.size < 2) {
                 val pillHero = detectHeroCardsFromTopPill(bitmap)
                 if (pillHero.size == 2) {
@@ -63,7 +63,15 @@ object LocalCardOcrDetector {
                 }
             }
 
-            // Paso 2B: Si no se detectaron al menos 3 cartas de mesa, escanear el centro del tapete con micro-crop 2.2x
+            // Paso 2B: Si aún faltan cartas de Hero, escanear quirúrgicamente el Asiento Inferior de Hero (GGPoker / PokerBros)
+            if (state.cartasPropias.size < 2) {
+                val bottomSeatHero = detectHeroCardsFromBottomSeatCrop(bitmap, state.cartasComunitarias)
+                if (bottomSeatHero.size == 2) {
+                    state = state.copy(cartasPropias = bottomSeatHero)
+                }
+            }
+
+            // Paso 2C: Si no se detectaron al menos 3 cartas de mesa, escanear el centro del tapete con micro-crop 2.2x
             if (state.cartasComunitarias.size < 3) {
                 val boardCardsCrop = detectCommunityCardsFromBoardCrop(bitmap)
                 if (boardCardsCrop.size >= 2) {
@@ -417,8 +425,8 @@ object LocalCardOcrDetector {
         val width = fullBitmap.width
         val height = fullBitmap.height
 
-        val cropY = (height * 0.40f).toInt().coerceIn(0, height - 1)
-        val cropH = (height * 0.25f).toInt().coerceIn(10, height - cropY)
+        val cropY = (height * 0.36f).toInt().coerceIn(0, height - 1)
+        val cropH = (height * 0.30f).toInt().coerceIn(10, height - cropY)
         val cropX = (width * 0.06f).toInt().coerceIn(0, width - 1)
         val cropW = (width * 0.88f).toInt().coerceIn(10, width - cropX)
 
@@ -559,6 +567,101 @@ object LocalCardOcrDetector {
         return if (unique.size >= 2) {
             val two = unique.take(2)
             listOf(PokerCard(two[0].rank, two[0].suit), PokerCard(two[1].rank, two[1].suit))
+        } else {
+            emptyList()
+        }
+    }
+
+    /**
+     * Detección quirúrgica de cartas de Hero en el Asiento Inferior (Bottom Seat Crop).
+     * Especialmente diseñado para salas como GGPoker y PokerBros donde Hero no tiene
+     * píldora digital superior, sino naipes inclinados/3D sobre el avatar inferior (Y: [0.65, 0.95], X: [0.15, 0.85]).
+     * Aplica recorte y escalado x2.2 con realce de nitidez para aislar rangos y palos.
+     */
+    suspend fun detectHeroCardsFromBottomSeatCrop(
+        fullBitmap: Bitmap,
+        board: List<PokerCard>
+    ): List<PokerCard> {
+        val width = fullBitmap.width
+        val height = fullBitmap.height
+
+        val cropX = (width * 0.15f).toInt().coerceIn(0, width - 1)
+        val cropY = (height * 0.65f).toInt().coerceIn(0, height - 1)
+        val cropW = (width * 0.70f).toInt().coerceIn(10, width - cropX)
+        val cropH = (height * 0.30f).toInt().coerceIn(10, height - cropY)
+
+        val cropped = try {
+            Bitmap.createBitmap(fullBitmap, cropX, cropY, cropW, cropH)
+        } catch (e: Exception) {
+            return emptyList()
+        }
+
+        val scaledW = (cropW * 2.2f).toInt()
+        val scaledH = (cropH * 2.2f).toInt()
+        val scaled = Bitmap.createScaledBitmap(cropped, scaledW, scaledH, true)
+
+        val validRanks = setOf("A", "K", "Q", "J", "10", "9", "8", "7", "6", "5", "4", "3", "2")
+        val foundCards = mutableListOf<DetectedCard>()
+
+        try {
+            val inputImage = InputImage.fromBitmap(scaled, 0)
+            val visionText = recognizer.process(inputImage).awaitTask()
+
+            for (block in visionText.textBlocks) {
+                for (line in block.lines) {
+                    for (element in line.elements) {
+                        val text = element.text.trim()
+                        val box = element.boundingBox ?: continue
+                        val extracted = extractCardsFromToken(text, validRanks)
+                        if (extracted.isEmpty()) continue
+
+                        val mappedLeft = cropX + (box.left / 2.2f).toInt()
+                        val mappedTop = cropY + (box.top / 2.2f).toInt()
+                        val mappedRight = cropX + (box.right / 2.2f).toInt()
+                        val mappedBottom = cropY + (box.bottom / 2.2f).toInt()
+                        val fullBox = Rect(mappedLeft, mappedTop, mappedRight, mappedBottom)
+
+                        if (!isCardSurface(fullBitmap, fullBox)) continue
+
+                        val count = extracted.size
+                        for (idx in 0 until count) {
+                            val (rank, explicitSuit) = extracted[idx]
+                            val subBox = if (count > 1) {
+                                val subW = fullBox.width() / count
+                                Rect(fullBox.left + (idx * subW), fullBox.top, fullBox.left + ((idx + 1) * subW), fullBox.bottom)
+                            } else {
+                                fullBox
+                            }
+                            val suit = explicitSuit ?: sampleCardSuitFromPixels(fullBitmap, subBox)
+                            foundCards.add(DetectedCard(rank, suit, subBox))
+                        }
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Bottom seat OCR failed", e)
+        } finally {
+            if (!cropped.isRecycled) cropped.recycle()
+            if (!scaled.isRecycled) scaled.recycle()
+        }
+
+        // Deduplicar cartas detectadas muy cercanas
+        val sorted = foundCards.sortedBy { it.box.left }
+        val unique = mutableListOf<DetectedCard>()
+        for (c in sorted) {
+            val isDup = unique.any { abs(it.box.centerX() - c.box.centerX()) < (width * 0.045f) }
+            if (!isDup) unique.add(c)
+        }
+
+        // Descartar cartas que ya pertenezcan a la mesa comunitaria
+        val candidatesNotOnBoard = unique.filter { c ->
+            !board.any { b -> b.rank.equals(c.rank, ignoreCase = true) && b.suit == c.suit }
+        }
+
+        return if (candidatesNotOnBoard.size >= 2) {
+            val two = candidatesNotOnBoard.take(2)
+            val result = listOf(PokerCard(two[0].rank, two[0].suit), PokerCard(two[1].rank, two[1].suit))
+            sanitizeHeroCards(result, board)
         } else {
             emptyList()
         }
@@ -812,12 +915,12 @@ object LocalCardOcrDetector {
                 if ((r > 150 && g > 150 && b > 150) || (r + g + b > 450)) {
                     cardLikePixels++
                 }
-                // 2. Azul (cuerpo azul PokerStars ♦ o pip azul)
-                else if (b > 95 && b > r * 1.15f && b >= g * 0.95f) {
+                // 2. Azul / Cyan (cuerpo azul PokerStars ♦ o pip azul/cyan GGPoker)
+                else if (b > 85 && b > r * 1.10f && b >= g * 0.90f) {
                     cardLikePixels++
                 }
                 // 3. Verde (cuerpo verde PokerStars ♣ o pip verde)
-                else if (g > 95 && g > r * 1.15f && g > b * 1.05f) {
+                else if (g > 95 && g > r * 1.15f && g > b * 1.10f) {
                     cardLikePixels++
                 }
                 // 4. Rojo (pip de corazones ♥ o diamantes 2-color)
@@ -875,12 +978,12 @@ object LocalCardOcrDetector {
                 // Omitir fondo blanco puro de la carta
                 if (r > 220 && g > 220 && b > 220) continue
 
-                // 1. Azul (Diamantes en barajas de 4 colores, ej. PokerStars)
-                if (b > 105 && b > r * 1.15f && b >= g * 0.95f) {
+                // 1. Azul / Cyan (Diamantes en barajas de 4 colores, ej. PokerStars, GGPoker)
+                if (b > 90 && b > r * 1.15f && b >= g * 0.90f) {
                     blueCount++
                 }
-                // 2. Verde (Tréboles en barajas de 4 colores, ej. PokerStars)
-                else if (g > 95 && g > r * 1.15f && g > b * 1.05f) {
+                // 2. Verde puro (Tréboles en barajas de 4 colores, ej. PokerStars)
+                else if (g > 95 && g > r * 1.15f && g > b * 1.15f) {
                     greenCount++
                 }
                 // 3. Rojo (Corazones en 4-color y corazones/diamantes en 2-color)
@@ -895,10 +998,10 @@ object LocalCardOcrDetector {
         }
 
         return when {
-            blueCount > 3 && blueCount >= greenCount -> CardSuit.DIAMONDS
-            greenCount > 3 -> CardSuit.CLUBS
-            redCount > 3 -> CardSuit.HEARTS
-            darkCount > 3 -> CardSuit.SPADES
+            blueCount > 2 && blueCount >= greenCount -> CardSuit.DIAMONDS
+            greenCount > 2 -> CardSuit.CLUBS
+            redCount > 2 -> CardSuit.HEARTS
+            darkCount > 2 -> CardSuit.SPADES
             else -> CardSuit.SPADES
         }
     }

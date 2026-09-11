@@ -96,27 +96,34 @@ class GeminiPokerRepository {
      */
     fun buildSurgicalPrompt(state: HandState): String {
         return """
-        You are a World-Class Texas Hold'em Vision Engine with millimetric spatial precision.
-        You are provided with up to 3 optical perspectives of the poker table:
-        - Image 1: Macro Full Table view (Seats, active players, dealer button 'D', pot, table layout).
-        - Image 2: Micro-Zoom view of the Community Cards (Center table board: Flop/Turn/River).
-        - Image 3: Micro-Zoom view of the Hero seat & Hole Cards (Bottom area of table).
+        You are a World-Class Texas Hold'em Vision Engine with millimetric spatial precision across PokerStars, GGPoker, PokerBros, and BCPoker.
+        You are provided with up to 4 optical perspectives of the poker table:
+        - Image 1: Macro Full Table view (All seats, chips, dealer button, center pot, player counts).
+        - Image 2: Micro-Zoom Community Cards (Center board: Flop/Turn/River).
+        - Image 3: Micro-Zoom Hero Seat & Hole Cards (Bottom area where Hero sits, especially GGPoker and PokerBros where cards are tilted/overlapping over avatar).
+        - Image 4: Micro-Zoom Top Status Pill (Present in PokerStars & BCPoker in the top-left corner).
         Context: Phase[${state.fase}], Players[${state.jugadores}], MyPos[${state.posicion}], Dealer[${state.dealerPosition}].
 
-        STRICT POKER RULES & AXIOMS:
+        STRICT MULTI-ROOM POKER AXIOMS:
         1. Standard 52-Card Deck: Every card is unique in rank and suit. A card CANNOT appear in both Hero's hand and the Community cards!
-        2. Hero Hole Cards: Hero ALWAYS holds exactly 2 face-up cards. Opponents' cards are face-down (card backs like red/black patterned rectangles); NEVER read opponent card backs as cards.
-           - Look at Hero's seat at the bottom (bottom-center or bottom-left, e.g. Jr699).
-           - Under Hero's avatar, read the combination text badge if present (e.g. 'trío de Ks', 'par de ases', 'doble pareja', 'escalera') to cross-verify the cards!
-        3. Community Cards: Located horizontally in the center of the table. Preflop = "" (none). Flop = 3 cards. Turn = 4 cards. River = 5 cards.
-           - Note: The board can contain pairs, triplets, or quads (e.g. "Kh Kc Ks"). Retain all cards in left-to-right order.
+        2. Hero Hole Cards (ALWAYS EXACTLY 2 CARDS):
+           - In GGPoker and PokerBros: Check the bottom-center seat. Hero's 2 cards are face-up, tilted in 3D perspective or overlapping. Read ranks & suits.
+           - In PokerStars and BCPoker: Check BOTH the top-left digital pill AND the bottom-center avatar.
+           - Opponents' cards are face-down (card backs); NEVER read opponent card backs as cards!
+           - Under Hero's avatar, read any combination badge (e.g. 'trío de Ks', 'par de ases', 'doble pareja', 'two pair', 'flush') to verify!
+        3. Community Cards (Center table):
+           - Preflop = "" (none). Flop = 3 cards. Turn = 4 cards. River = 5 cards.
+           - Retain all cards in left-to-right order (e.g. "Kh Kc Ks").
         4. Card Suits:
            - ♥ Hearts = h (Red)
-           - ♦ Diamonds = d (Blue in 4-color deck, Red in 2-color deck)
+           - ♦ Diamonds = d (Blue/Cyan in 4-color deck, Red in 2-color deck)
            - ♣ Clubs = c (Green in 4-color deck, Black in 2-color deck)
-           - ♠ Spades = s (Black)
-        5. Pot: Numeric total pot amount in the center (e.g. "2596").
-        6. Dealer Button: Yellow circle with 'D' or 'DEALER'.
+           - ♠ Spades = s (Black/Dark)
+        5. Total Pot: Number in center (e.g. "2596" or "12.5 BB" or "$150").
+        6. Hero Chip Stack: Number on or directly beneath Hero's avatar.
+        7. Dealer Button: Yellow, white, or golden circle marked 'D' or 'BTN'. Determine its position and Hero's position (BTN, SB, BB, UTG, MP, CO).
+        8. Active Players: Count number of active seated players around the table (2 to 9).
+        9. GTO Decision: Strict optimal action (e.g. "FOLD", "CHECK", "CALL 1x", "BET 33%", "BET 2.5 BB", "RAISE 3x", "ALL-IN").
 
         Format: Output STRICT JSON ONLY with these exact keys:
         {
@@ -124,6 +131,7 @@ class GeminiPokerRepository {
           "mesa": "Kh Kc Ks",
           "fase": "Flop",
           "bote": "2596",
+          "fichasHero": "10000",
           "jugadores": 6,
           "dealer": "BTN",
           "miPosicion": "SB",
