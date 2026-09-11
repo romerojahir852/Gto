@@ -203,7 +203,8 @@ data class HandState(
     val dealerPosition: String = "BTN",
     val dealerDetected: Boolean = false,
     val tablePositionsSummary: String = "BTN (Dealer) • SB • BB • UTG • MP • CO",
-    val explicacion: String = ""
+    val explicacion: String = "",
+    val fichasHero: String = ""
 ) {
     val displayBote: String
         get() = when (bettingUnit) {
@@ -384,7 +385,8 @@ object PokerGameStateManager {
         dealerPosition: String? = null,
         dealerDetected: Boolean? = null,
         tablePositionsSummary: String? = null,
-        explicacion: String? = null
+        explicacion: String? = null,
+        fichasHero: String? = null
     ) {
         _handState.update { current ->
             val newHero = cartasPropias ?: current.cartasPropias
@@ -468,6 +470,7 @@ object PokerGameStateManager {
                 dealerDetected = dealerDetected ?: current.dealerDetected,
                 tablePositionsSummary = tablePositionsSummary ?: current.tablePositionsSummary,
                 explicacion = explicacion ?: current.explicacion,
+                fichasHero = fichasHero ?: current.fichasHero,
                 isLoading = false,
                 isExpanded = true
             )

@@ -229,6 +229,7 @@ class GeminiPokerRepository {
                     gtoAction = finalParsed.gtoAction,
                     gtoActionValue = finalParsed.gtoActionValue,
                     explicacion = finalParsed.explicacion,
+                    fichasHero = finalParsed.fichasHero,
                     rawText = responseText,
                     latencyMs = latency,
                     isSimulation = false,
@@ -497,6 +498,7 @@ class GeminiPokerRepository {
         var detectedMyPos = currentState.posicion
         var detectedBote = currentState.bote
         var detectedApuesta = currentState.apuestaRival
+        var detectedFichasHero = currentState.fichasHero
         var parsedFase: String? = null
         var explicacion = ""
 
@@ -575,6 +577,10 @@ class GeminiPokerRepository {
             (jsonObj["apuestaRival"] ?: jsonObj["rivalBet"] ?: jsonObj["apuesta"])?.jsonPrimitive?.contentOrNull?.let { value ->
                 val clean = value.replace(Regex("[^0-9.]"), "").toDoubleOrNull()
                 if (clean != null && clean > 0.0) detectedApuesta = clean
+            }
+
+            (jsonObj["fichasHero"] ?: jsonObj["heroStack"] ?: jsonObj["stack"] ?: jsonObj["fichas"])?.jsonPrimitive?.contentOrNull?.let { value ->
+                if (value.isNotBlank()) detectedFichasHero = value.trim()
             }
 
             (jsonObj["explicacion"] ?: jsonObj["consejo"] ?: jsonObj["explanation"])?.jsonPrimitive?.contentOrNull?.let { value ->
@@ -664,6 +670,7 @@ class GeminiPokerRepository {
             gtoAction = gtoAction,
             gtoActionValue = gtoActionValue,
             explicacion = explicacion,
+            fichasHero = detectedFichasHero,
             rawText = rawText,
             latencyMs = latencyMs,
             isLoading = false,

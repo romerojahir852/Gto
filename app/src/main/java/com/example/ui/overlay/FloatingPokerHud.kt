@@ -586,6 +586,15 @@ fun FloatingPokerHud(
                                         fontSize = 8.5.sp,
                                         fontWeight = FontWeight.Bold
                                     )
+                                    if (state.fichasHero.isNotBlank()) {
+                                        Text(text = "•", color = Color(0xFF475569), fontSize = 8.sp)
+                                        Text(
+                                            text = "Stack: ${state.fichasHero}",
+                                            color = Color(0xFFFFD700),
+                                            fontSize = 8.5.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
                                 }
 
                                 // Botón desplegar/colapsar ajustes manuales ⚙
