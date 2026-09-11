@@ -53,7 +53,59 @@ object LocalCardOcrDetector {
             val visionText = recognizer.process(inputImage).awaitTask()
             val latency = System.currentTimeMillis() - startTime
 
-            parseVisionText(visionText, bitmap, currentState, latency)
+            val pass1State = parseVisionText(visionText, bitmap, currentState, latency)
+
+            // Pass 2: Si en el escaneo general no se detectaron al menos 3 cartas de mesa,
+            // se ejecuta un micro-escaneo de ultra-alta resolución enfocado en el centro de la mesa
+            if (pass1State.cartasComunitarias.size < 3) {
+                val boardCardsCrop = detectCommunityCardsFromBoardCrop(bitmap)
+                if (boardCardsCrop.size >= 2) {
+                    val updatedFase = when (boardCardsCrop.size) {
+                        2, 3 -> "Flop"
+                        4 -> "Turn"
+                        5 -> "River"
+                        else -> "Flop"
+                    }
+                    val heroCards = pass1State.cartasPropias
+                    val engineResult = if (heroCards.isNotEmpty()) {
+                        PokerGtoEngine.calculate(
+                            holeCards = heroCards,
+                            board = boardCardsCrop,
+                            jugadores = pass1State.jugadores,
+                            posicion = currentState.posicion,
+                            fase = updatedFase,
+                            bote = pass1State.bote,
+                            apuestaRival = currentState.apuestaRival
+                        )
+                    } else null
+
+                    val heroDisplay = if (heroCards.isNotEmpty()) heroCards.joinToString(" ") { it.displayString } else "—"
+                    val boardDisplay = " | Mesa: ${boardCardsCrop.joinToString(" ") { it.displayString }}"
+                    val totalLatency = System.currentTimeMillis() - startTime
+                    val status = "⚡ OCR Local: $heroDisplay$boardDisplay · ${totalLatency}ms"
+
+                    GTOStateManager.updateFromAnalysis(
+                        fase = updatedFase,
+                        bote = pass1State.bote,
+                        jugadores = pass1State.jugadores,
+                        dealerPos = currentState.dealerPosition,
+                        myPos = currentState.posicion
+                    )
+
+                    return pass1State.copy(
+                        fase = updatedFase,
+                        cartasComunitarias = boardCardsCrop,
+                        outs = engineResult?.outs ?: pass1State.outs,
+                        winRate = engineResult?.winRate ?: pass1State.winRate,
+                        gtoAction = engineResult?.action ?: pass1State.gtoAction,
+                        gtoActionValue = engineResult?.actionValue ?: pass1State.gtoActionValue,
+                        latencyMs = totalLatency,
+                        statusMessage = status
+                    )
+                }
+            }
+
+            pass1State
         } catch (e: Exception) {
             val latency = System.currentTimeMillis() - startTime
             Log.e(TAG, "OCR detection failed", e)
@@ -308,6 +360,82 @@ object LocalCardOcrDetector {
         } else {
             emptyList()
         }
+    }
+
+    /**
+     * Segundo pase de alta resolución sobre la región central de la mesa (Board Micro-Crop).
+     * En salas de póker móviles (PokerStars, BC Poker, GGPoker), las cartas comunitarias
+     * están localizadas en Y: [0.40, 0.65], X: [0.06, 0.94].
+     * Se recortan y escalan x2 con realce de contraste para que el OCR detecte con 100% de nitidez
+     * los rangos pequeños y palos cromáticos de 4 colores.
+     */
+    suspend fun detectCommunityCardsFromBoardCrop(fullBitmap: Bitmap): List<PokerCard> {
+        val width = fullBitmap.width
+        val height = fullBitmap.height
+
+        val cropY = (height * 0.40f).toInt().coerceIn(0, height - 1)
+        val cropH = (height * 0.25f).toInt().coerceIn(10, height - cropY)
+        val cropX = (width * 0.06f).toInt().coerceIn(0, width - 1)
+        val cropW = (width * 0.88f).toInt().coerceIn(10, width - cropX)
+
+        val cropped = try {
+            Bitmap.createBitmap(fullBitmap, cropX, cropY, cropW, cropH)
+        } catch (e: Exception) {
+            return emptyList()
+        }
+
+        val scaledW = cropW * 2
+        val scaledH = cropH * 2
+        val scaled = Bitmap.createScaledBitmap(cropped, scaledW, scaledH, true)
+
+        val validRanks = setOf("A", "K", "Q", "J", "10", "9", "8", "7", "6", "5", "4", "3", "2")
+        val detectedCards = mutableListOf<DetectedCard>()
+
+        try {
+            val inputImage = InputImage.fromBitmap(scaled, 0)
+            val visionText = recognizer.process(inputImage).awaitTask()
+
+            for (block in visionText.textBlocks) {
+                for (line in block.lines) {
+                    for (element in line.elements) {
+                        val text = element.text.trim()
+                        val box = element.boundingBox ?: continue
+
+                        // Mapear coordenadas de la imagen escalada de vuelta a fullBitmap
+                        val mappedLeft = cropX + (box.left / 2)
+                        val mappedTop = cropY + (box.top / 2)
+                        val mappedRight = cropX + (box.right / 2)
+                        val mappedBottom = cropY + (box.bottom / 2)
+                        val fullBox = Rect(mappedLeft, mappedTop, mappedRight, mappedBottom)
+
+                        val extracted = extractCardsFromToken(text, validRanks)
+                        if (extracted.isEmpty()) continue
+
+                        if (!isCardSurface(fullBitmap, fullBox)) continue
+
+                        val count = extracted.size
+                        for (idx in 0 until count) {
+                            val (rank, explicitSuit) = extracted[idx]
+                            val subBox = if (count > 1) {
+                                val subW = fullBox.width() / count
+                                Rect(fullBox.left + (idx * subW), fullBox.top, fullBox.left + ((idx + 1) * subW), fullBox.bottom)
+                            } else {
+                                fullBox
+                            }
+                            val suit = explicitSuit ?: sampleCardSuitFromPixels(fullBitmap, subBox)
+                            detectedCards.add(DetectedCard(rank, suit, subBox))
+                        }
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Crop OCR failed", e)
+        } finally {
+            if (!cropped.isRecycled) cropped.recycle()
+            if (!scaled.isRecycled) scaled.recycle()
+        }
+
+        return detectCommunityCardsBoard(detectedCards, width, height)
     }
 
     /**

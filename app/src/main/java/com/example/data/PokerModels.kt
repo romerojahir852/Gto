@@ -385,12 +385,39 @@ object PokerGameStateManager {
         tablePositionsSummary: String? = null
     ) {
         _handState.update { current ->
+            val newHero = cartasPropias ?: current.cartasPropias
+            val heroUnchanged = current.cartasPropias.isNotEmpty() && newHero.isNotEmpty() &&
+                current.cartasPropias.map { "${it.rank}_${it.suit}" }.toSet() == newHero.map { "${it.rank}_${it.suit}" }.toSet()
+
+            // Memoria Acumulativa de Mesa: si las cartas de Hero no han cambiado y ya había cartas de mesa,
+            // no vaciar la mesa a Preflop por una oclusión o animación transitoria.
+            val effectiveBoard = if (cartasComunitarias != null) {
+                if (cartasComunitarias.isEmpty() && heroUnchanged && current.cartasComunitarias.isNotEmpty()) {
+                    current.cartasComunitarias
+                } else {
+                    cartasComunitarias
+                }
+            } else {
+                current.cartasComunitarias
+            }
+
+            val effectiveFase = if (effectiveBoard.isNotEmpty()) {
+                when (effectiveBoard.size) {
+                    2, 3 -> "Flop"
+                    4 -> "Turn"
+                    5 -> "River"
+                    else -> "Flop"
+                }
+            } else {
+                fase ?: current.fase
+            }
+
             current.copy(
-                fase = fase ?: current.fase,
+                fase = effectiveFase,
                 bote = bote ?: current.bote,
                 apuestaRival = apuestaRival ?: current.apuestaRival,
-                cartasPropias = cartasPropias ?: current.cartasPropias,
-                cartasComunitarias = cartasComunitarias ?: current.cartasComunitarias,
+                cartasPropias = newHero,
+                cartasComunitarias = effectiveBoard,
                 outs = outs ?: current.outs,
                 winRate = winRate ?: current.winRate,
                 gtoAction = gtoAction ?: current.gtoAction,

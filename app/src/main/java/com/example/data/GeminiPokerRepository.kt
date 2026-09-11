@@ -48,14 +48,10 @@ class GeminiPokerRepository {
     }
 
     /**
-     * Cascada multi-modelo ultra-resiliente de Google Gemini Flash.
-     * Soporta los modelos activos de alta velocidad con fallback automático.
+     * Endpoint exclusivo Gemini 3.8 Flash según especificación estricta del usuario.
      */
     private val candidateModels = listOf(
-        "gemini-2.5-flash",
-        "gemini-2.0-flash",
-        "gemini-3.8-flash",
-        "gemini-3.5-flash"
+        "gemini-3.8-flash"
     )
 
     /**
@@ -173,13 +169,7 @@ class GeminiPokerRepository {
                     Log.d("GEMINI_DEBUG", "RAW AI RESPONSE (${callResult.modelUsed}): $responseText")
                     val parsedState = parseSurgicalResponse(responseText, currentState, latency)
                     if (parsedState.cartasPropias.isNotEmpty() || parsedState.cartasComunitarias.isNotEmpty()) {
-                        val modelLabel = when (callResult.modelUsed) {
-                            "gemini-2.5-flash" -> "Gemini 2.5 Flash"
-                            "gemini-2.0-flash" -> "Gemini 2.0 Flash"
-                            "gemini-3.8-flash" -> "Gemini 3.8 Flash"
-                            "gemini-3.5-flash" -> "Gemini 3.5 Flash"
-                            else -> callResult.modelUsed ?: "Gemini Flash"
-                        }
+                        val modelLabel = "Gemini 3.8 Flash"
                         val statusMsg = "⚡ $modelLabel: ${parsedState.cartasPropias.joinToString(" ") { it.displayString }} | Mesa: ${parsedState.cartasComunitarias.joinToString(" ") { it.displayString }} · ${latency}ms"
                         val finalParsed = parsedState.copy(statusMessage = statusMsg)
                         PokerGameStateManager.updateIncremental(

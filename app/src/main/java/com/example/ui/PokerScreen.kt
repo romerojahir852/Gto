@@ -1674,7 +1674,7 @@ fun ApiKeySettingsCard(
                         modifier = Modifier.size(20.dp)
                     )
                     Text(
-                        text = if (isConfigured) "Gemini Serie 3 Flash (3.8 / 3.7 / 3.6) Activo" else "OCR Local ML Kit Activo",
+                        text = if (isConfigured) "Gemini 3.8 Flash Activo" else "OCR Local ML Kit Activo",
                         fontSize = 15.sp,
                         fontWeight = FontWeight.Bold,
                         color = AppTheme.colors.textPrimary
@@ -1701,9 +1701,9 @@ fun ApiKeySettingsCard(
 
             Text(
                 text = if (isConfigured) {
-                    "Tu clave API está configurada (${ApiKeyManager.getMaskedKey(context)}). La visión multimodal de Gemini Serie 3 Flash (3.8 / 3.7 / 3.6) analizará las capturas con visión multirresolución de alta precisión."
+                    "Tu clave API está configurada (${ApiKeyManager.getMaskedKey(context)}). La visión multimodal de Gemini 3.8 Flash analizará las capturas con visión multirresolución de alta precisión."
                 } else {
-                    "Sin API Key configurada. El motor OCR Local integrado (ML Kit) lee las cartas en el dispositivo sin internet. Para activar Gemini AI (3.8 / 3.7 / 3.6), ingresa tu clave gratuita de Google AI Studio."
+                    "Sin API Key configurada. El motor OCR Local integrado (ML Kit) lee las cartas en el dispositivo sin internet. Para activar Gemini 3.8 Flash, ingresa tu clave gratuita de Google AI Studio."
                 },
                 fontSize = 12.sp,
                 color = AppTheme.colors.textSecondary,
@@ -1843,7 +1843,7 @@ fun TopApiKeyStatusBanner(
                 )
                 Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     Text(
-                        text = if (isConfigured) "Gemini Serie 3 Flash (3.8 / 3.7 / 3.6) Activo" else "Modo OCR Local (Sin API Key)",
+                        text = if (isConfigured) "Gemini 3.8 Flash Activo" else "Modo OCR Local (Sin API Key)",
                         color = AppTheme.colors.textPrimary,
                         fontSize = 13.sp,
                         fontWeight = FontWeight.Bold
@@ -1930,7 +1930,7 @@ fun ApiKeyConfigDialog(
                 }
 
                 Text(
-                    text = "Para activar la visión multimodal de Gemini Serie 3 Flash (3.8 / 3.7 / 3.6), ingresa tu clave gratuita de Google AI Studio. Si no tienes una, la app usará automáticamente el motor OCR Local de ML Kit.",
+                    text = "Para activar la visión multimodal de Gemini 3.8 Flash, ingresa tu clave gratuita de Google AI Studio. Si no tienes una, la app usará automáticamente el motor OCR Local de ML Kit.",
                     color = AppTheme.colors.textSecondary,
                     fontSize = 12.sp,
                     lineHeight = 16.sp
