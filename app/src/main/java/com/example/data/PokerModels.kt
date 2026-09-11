@@ -389,18 +389,49 @@ object PokerGameStateManager {
             val heroUnchanged = current.cartasPropias.isNotEmpty() && newHero.isNotEmpty() &&
                 current.cartasPropias.map { "${it.rank}_${it.suit}" }.toSet() == newHero.map { "${it.rank}_${it.suit}" }.toSet()
 
-            // Memoria Acumulativa de Mesa: si las cartas de Hero no han cambiado y ya habÃ­a cartas de mesa,
-            // no vaciar la mesa a Preflop por una oclusiÃ³n o animaciÃ³n transitoria.
-            val effectiveBoard = if (cartasComunitarias != null) {
-                if (cartasComunitarias.isEmpty() && heroUnchanged && current.cartasComunitarias.isNotEmpty()) {
-                    current.cartasComunitarias
-                } else {
-                    cartasComunitarias
+            // ------ MEMORIA ACUMULATIVA + FASE MONOTÓNICA (Puntos 7, 8, 10) ------
+
+            // Punto 8: Detección de cambio de mano (Hero cambió completamente)
+            val heroCompletelyChanged = !heroUnchanged && current.cartasPropias.isNotEmpty() && newHero.isNotEmpty() &&
+                current.cartasPropias.none { old -> newHero.any { n -> old.rank == n.rank } }
+
+            val effectiveBoard = if (heroCompletelyChanged) {
+                // Nueva mano detectada: resetear mesa
+                cartasComunitarias ?: emptyList()
+            } else if (cartasComunitarias != null) {
+                when {
+                    // Si el nuevo scan no encontró cartas de mesa pero Hero no cambió, conservar
+                    cartasComunitarias.isEmpty() && heroUnchanged && current.cartasComunitarias.isNotEmpty() ->
+                        current.cartasComunitarias
+
+                    // Punto 7: Fase MONOTÓNICA — si tiene MENOS cartas que el actual, conservar
+                    cartasComunitarias.size < current.cartasComunitarias.size && heroUnchanged ->
+                        current.cartasComunitarias
+
+                    // Punto 10: MERGE INCREMENTAL — unir cartas nuevas con anteriores
+                    cartasComunitarias.isNotEmpty() && current.cartasComunitarias.isNotEmpty() && heroUnchanged -> {
+                        val currentSet = current.cartasComunitarias.map { "${it.rank}_${it.suit}" }.toSet()
+                        val newSet = cartasComunitarias.map { "${it.rank}_${it.suit}" }.toSet()
+                        val overlap = currentSet.intersect(newSet)
+                        if (overlap.isNotEmpty()) {
+                            val merged = current.cartasComunitarias.toMutableList()
+                            for (card in cartasComunitarias) {
+                                val key = "${card.rank}_${card.suit}"
+                                if (key !in currentSet) merged.add(card)
+                            }
+                            merged.take(5)
+                        } else if (cartasComunitarias.size >= current.cartasComunitarias.size) {
+                            cartasComunitarias
+                        } else {
+                            current.cartasComunitarias
+                        }
+                    }
+
+                    else -> cartasComunitarias
                 }
             } else {
                 current.cartasComunitarias
             }
-
             val effectiveFase = if (effectiveBoard.isNotEmpty()) {
                 when (effectiveBoard.size) {
                     2, 3 -> "Flop"

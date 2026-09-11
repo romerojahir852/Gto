@@ -55,38 +55,102 @@ object LocalCardOcrDetector {
 
             var state = parseVisionText(visionText, bitmap, currentState, pass1Latency)
 
-            // Paso 2A: Si no se detectaron las 2 cartas de Hero, escanear la PÃ­ldora Digital Superior (PokerStars / BCPoker)
-            if (state.cartasPropias.size < 2) {
+            // ----------------------------------------------------------------------
+            // PIPELINE EXHAUSTIVO DE 5 PASES — SIEMPRE se ejecutan TODOS los pases
+            // y se fusionan los mejores resultados. Nunca se bloquea un pase.
+            // ----------------------------------------------------------------------
+
+            var bestHero = state.cartasPropias
+            var bestBoard = state.cartasComunitarias
+            Log.d(TAG, "[PASS-1] FullFrame: Hero=${bestHero.map { it.displayString }} Board=${bestBoard.map { it.displayString }}")
+
+            // Paso 2A: SIEMPRE escanear Píldora Digital Superior (PokerStars / BCPoker)
+            try {
                 val pillHero = detectHeroCardsFromTopPill(bitmap)
+                Log.d(TAG, "[PASS-2A] TopPill: Hero=${pillHero.map { it.displayString }}")
                 if (pillHero.size == 2) {
-                    state = state.copy(cartasPropias = pillHero)
-                }
-            }
-
-            // Paso 2B: Si aÃºn faltan cartas de Hero, escanear quirÃºrgicamente el Asiento Inferior de Hero (GGPoker / PokerBros)
-            if (state.cartasPropias.size < 2) {
-                val bottomSeatHero = detectHeroCardsFromBottomSeatCrop(bitmap, state.cartasComunitarias)
-                if (bottomSeatHero.size == 2) {
-                    state = state.copy(cartasPropias = bottomSeatHero)
-                }
-            }
-
-            // Paso 2C: Si no se detectaron al menos 3 cartas de mesa, escanear el centro del tapete con micro-crop 2.2x
-            if (state.cartasComunitarias.size < 3) {
-                val boardCardsCrop = detectCommunityCardsFromBoardCrop(bitmap)
-                if (boardCardsCrop.size >= 2) {
-                    val updatedFase = when (boardCardsCrop.size) {
-                        2, 3 -> "Flop"
-                        4 -> "Turn"
-                        5 -> "River"
-                        else -> "Flop"
+                    if (bestHero.size < 2) {
+                        bestHero = pillHero
                     }
-                    state = state.copy(
-                        fase = updatedFase,
-                        cartasComunitarias = boardCardsCrop
-                    )
+                }
+            } catch (e: Exception) { Log.w(TAG, "Pass 2A failed", e) }
+
+            // Paso 2B: SIEMPRE escanear Asiento Inferior de Hero (GGPoker / PokerBros)
+            try {
+                val bottomSeatHero = detectHeroCardsFromBottomSeatCrop(bitmap, bestBoard)
+                Log.d(TAG, "[PASS-2B] BottomSeat: Hero=${bottomSeatHero.map { it.displayString }}")
+                if (bottomSeatHero.size == 2) {
+                    if (bestHero.size < 2) {
+                        bestHero = bottomSeatHero
+                    }
+                }
+            } catch (e: Exception) { Log.w(TAG, "Pass 2B failed", e) }
+
+            // Paso 3: SIEMPRE escanear Board Micro-Crop (centro del tapete con zoom x2)
+            try {
+                val boardCardsCrop = detectCommunityCardsFromBoardCrop(bitmap)
+                Log.d(TAG, "[PASS-3] BoardCrop: Board=${boardCardsCrop.map { it.displayString }}")
+                if (boardCardsCrop.size > bestBoard.size) {
+                    bestBoard = boardCardsCrop
+                    Log.d(TAG, "[PASS-3] ? UPGRADED board from ${state.cartasComunitarias.size} ? ${bestBoard.size} cards")
+                }
+            } catch (e: Exception) { Log.w(TAG, "Pass 3 failed", e) }
+
+            // Paso 4: Si aún hay < 5 cartas de mesa, re-escanear con CONTRASTE INVERTIDO (escala de grises + 1.5x)
+            if (bestBoard.size in 1..4) {
+                try {
+                    val grayBitmap = PokerImageProcessor.enhanceContrast(bitmap, contrast = 1.5f, brightness = 15f)
+                    val grayBoardCards = detectCommunityCardsFromBoardCrop(grayBitmap)
+                    Log.d(TAG, "[PASS-4] HighContrast: Board=${grayBoardCards.map { it.displayString }}")
+                    if (grayBoardCards.size > bestBoard.size) {
+                        bestBoard = grayBoardCards
+                        Log.d(TAG, "[PASS-4] ? UPGRADED board to ${bestBoard.size} cards via high contrast")
+                    }
+                    if (grayBitmap != bitmap && !grayBitmap.isRecycled) grayBitmap.recycle()
+                } catch (e: Exception) { Log.w(TAG, "Pass 4 failed", e) }
+            }
+
+            // Paso 5: MERGE ACUMULATIVO — si las cartas Hero no cambiaron, conservar cartas de mesa previas
+            val heroChanged = currentState.cartasPropias.isEmpty() || bestHero.isEmpty() ||
+                currentState.cartasPropias.map { "${it.rank}_${it.suit}" }.toSet() != bestHero.map { "${it.rank}_${it.suit}" }.toSet()
+
+            if (!heroChanged && bestBoard.size < currentState.cartasComunitarias.size) {
+                // Fase NUNCA retrocede si Hero no cambió — conservar mesa anterior (Punto 7)
+                bestBoard = currentState.cartasComunitarias
+                Log.d(TAG, "[MERGE] Preserved previous board (${bestBoard.size} cards) — hero unchanged, phase monotonic")
+            } else if (!heroChanged && bestBoard.isNotEmpty() && currentState.cartasComunitarias.isNotEmpty()) {
+                // Merge incremental: UNIR cartas nuevas con las anteriores (Punto 10)
+                val previousSet = currentState.cartasComunitarias.map { "${it.rank}_${it.suit}" }.toSet()
+                val newCards = bestBoard.filter { "${it.rank}_${it.suit}" !in previousSet }
+                if (newCards.isNotEmpty() && (currentState.cartasComunitarias.size + newCards.size) <= 5) {
+                    bestBoard = currentState.cartasComunitarias + newCards
+                    Log.d(TAG, "[MERGE] ? ADDED ${newCards.size} new board cards: total=${bestBoard.size}")
+                } else if (bestBoard.size >= currentState.cartasComunitarias.size) {
+                    // Keep the new detection if it has same or more cards
+                } else {
+                    bestBoard = currentState.cartasComunitarias
                 }
             }
+
+            // Validación Texas Hold'em: solo 0, 3, 4, 5 cartas de mesa son válidas (Punto 25)
+            if (bestBoard.size in 1..2) {
+                Log.w(TAG, "[VALIDATE] Invalid board size ${bestBoard.size} — must be 0,3,4,5. Discarding.")
+                bestBoard = if (currentState.cartasComunitarias.size >= 3) currentState.cartasComunitarias else emptyList()
+            }
+
+            // Validación de unicidad del mazo: no puede haber cartas duplicadas (Punto 23)
+            val allCards = bestHero + bestBoard
+            val seen = mutableSetOf<String>()
+            val duplicates = allCards.filter { !seen.add("${it.rank}_${it.suit}") }
+            if (duplicates.isNotEmpty()) {
+                Log.w(TAG, "[VALIDATE] Duplicate cards detected: ${duplicates.map { it.displayString }}. Removing from board.")
+                val heroSet = bestHero.map { "${it.rank}_${it.suit}" }.toSet()
+                bestBoard = bestBoard.filter { "${it.rank}_${it.suit}" !in heroSet }
+            }
+
+            state = state.copy(cartasPropias = bestHero, cartasComunitarias = bestBoard)
+
+            Log.d(TAG, "[FINAL] Hero=${bestHero.map { it.displayString }} Board=${bestBoard.map { it.displayString }}")
 
             // Recalcular GTO determinista con las cartas confirmadas
             val heroCards = state.cartasPropias
@@ -168,7 +232,12 @@ object LocalCardOcrDetector {
             "GTO", "MIS", "CARTAS", "PROPIAS", "COMUNITARIAS", "EQUITY", "RATE", "OUTS", "PROYECTOS",
             "DECISIÃ“N", "DECISION", "Ã“PTIMA", "OPTIMA", "RE-ANALIZAR", "REANALIZAR",
             "JUGADORES", "POS", "BTN", "SB", "BB", "UTG", "MP", "CO", "FICHAS", "OCR", "LOCAL", "GEMINI", "FLASH",
-            "POZO", "POKERSTARS", "DINERO", "FICTICIO", "ASIENTO", "LIBRE"
+            "POZO", "POKERSTARS", "DINERO", "FICTICIO", "ASIENTO", "LIBRE",
+            "SPIN", "JACKPOT", "RUSH", "ZOOM", "FAST", "REBUY", "ADDON", "INSURANCE",
+            "IT", "ME", "YOUR", "RUN", "TWICE", "SHOW", "MUCK", "SIT", "OUT",
+            "WAIT", "TIME", "BANK", "RABBIT", "TIP", "GIFT", "EMOJI", "CHAT",
+            "ANTE", "STRADDLE", "GGPOKER", "CLUBGG", "PPPOKER", "SUPREMA",
+            "BCPOKER", "WINAMAX", "PARTY", "888POKER", "NATURAL8", "POKERBROS"
         )
 
         val candidateCards = mutableListOf<DetectedCard>()
@@ -825,17 +894,25 @@ object LocalCardOcrDetector {
      * BUG 4 & 7: "1O" ? "10", "lO" ? "10", "I0" ? "10", "l0" ? "10",
      * "S" en contexto de carta ? "5", "G" ? "6", "b" ? "6", "O" solo ? "Q" o "0"
      */
+    /**
+     * Punto 22: Normalizacion exhaustiva de tokens OCR.
+     * Corrige TODAS las confusiones conocidas de MLKit en fuentes de poker movil.
+     */
     private fun normalizeOcrToken(raw: String): String {
         var s = raw
-        // Fix "10" misreads: "1O", "lO", "I0", "l0", "IO"
+        // Fix "10" misreads (frecuente en GGPoker/PokerBros)
         s = s.replace("1O", "10").replace("lO", "10").replace("I0", "10")
-            .replace("l0", "10").replace("IO", "10")
-        // Fix common single-char rank confusions (only apply to short tokens likely to be card ranks)
+            .replace("l0", "10").replace("IO", "10").replace("1o", "10")
+        // Fix single-char rank confusions (solo tokens cortos = probable carta)
         if (s.length <= 3) {
-            s = s.replace(Regex("(?<![A-Za-z])S(?![a-zA-Z])"), "5")  // S ? 5 (standalone)
-            s = s.replace(Regex("(?<![A-Za-z])G(?![a-zA-Z])"), "6")  // G ? 6 (standalone)
-            // "O" alone ? "Q" (common confusion, Q has a tail that MLKit misses)
+            s = s.replace(Regex("(?<![A-Za-z])S(?![a-zA-Z])"), "5")
+            s = s.replace(Regex("(?<![A-Za-z])G(?![a-zA-Z])"), "6")
+            s = s.replace(Regex("(?<![A-Za-z])Z(?![a-zA-Z])"), "2")
+            s = s.replace(Regex("(?<![A-Za-z])z(?![a-zA-Z])"), "2")
+            s = s.replace(Regex("(?<![A-Za-z])b(?![a-zA-Z])"), "6")
+            s = s.replace(Regex("(?<![A-Za-z])i(?![a-zA-Z])"), "J")
             if (s == "O" || s == "0") s = "Q"
+            if (s == "D") s = "Q"
         }
         return s
     }

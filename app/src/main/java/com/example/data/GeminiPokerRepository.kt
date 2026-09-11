@@ -126,22 +126,93 @@ class GeminiPokerRepository {
         8. Active Players: Count number of active seated players around the table (2 to 9).
         9. GTO Decision: Strict optimal action (e.g. "FOLD", "CHECK", "CALL 1x", "BET 33%", "BET 2.5 BB", "RAISE 3x", "ALL-IN").
 
+        CRITICAL DETECTION RULES:
+        10. COUNT EVERY CARD: Count the EXACT number of face-up community cards on the table. If you see 4 cards, you MUST report ALL 4. If you see 5, report ALL 5. Missing even ONE card makes your analysis INVALID.
+        11. LEFT-TO-RIGHT ORDER: Read community cards strictly LEFT-TO-RIGHT. Card 1 is leftmost, Card 5 is rightmost.
+        12. SELF-CHECK before responding: (a) No card appears in BOTH hole cards AND community cards. (b) Community cards total is 0, 3, 4, or 5. (c) Hero has EXACTLY 2 face-up cards. If any check fails, re-examine.
+
         Format: Output STRICT JSON ONLY with these exact keys:
         {
           "cartas": "10h 4h",
-          "mesa": "Kh Kc Ks",
-          "fase": "Flop",
+          "numCartasHero": 2,
+          "mesa": "Kh Kc Ks 7d",
+          "numCartasMesa": 4,
+          "fase": "Turn",
           "bote": "2596",
           "fichasHero": "10000",
           "jugadores": 6,
           "dealer": "BTN",
           "miPosicion": "SB",
-          "outs": "Trío de Reyes",
+          "outs": "Trio de Reyes",
           "win": "72%",
           "gto": "CALL 1x"
         }
+        IMPORTANT: "numCartasHero" MUST equal the actual count of cards in "cartas". "numCartasMesa" MUST equal the actual count of cards in "mesa".
         Suits: h=hearts ♥, d=diamonds ♦, c=clubs ♣, s=spades ♠.
         """.trimIndent()
+    }
+
+
+    /**
+     * Punto 1,3: Fusion inteligente de resultados Gemini + OCR.
+     * Toma las cartas Hero del motor con mayor confianza y las comunitarias del que detecte mas.
+     */
+    private fun mergeGeminiAndOcr(gemini: HandState, ocr: HandState, latency: Long): HandState {
+        // Hero: preferir el que tenga exactamente 2 cartas; si ambos tienen 2, preferir Gemini
+        val bestHero = when {
+            gemini.cartasPropias.size == 2 && ocr.cartasPropias.size == 2 -> gemini.cartasPropias
+            gemini.cartasPropias.size == 2 -> gemini.cartasPropias
+            ocr.cartasPropias.size == 2 -> ocr.cartasPropias
+            gemini.cartasPropias.isNotEmpty() -> gemini.cartasPropias
+            else -> ocr.cartasPropias
+        }
+
+        // Board: preferir el que tenga MAS cartas (3,4,5). Si iguales, preferir Gemini.
+        val bestBoard = when {
+            gemini.cartasComunitarias.size > ocr.cartasComunitarias.size -> gemini.cartasComunitarias
+            ocr.cartasComunitarias.size > gemini.cartasComunitarias.size -> ocr.cartasComunitarias
+            gemini.cartasComunitarias.isNotEmpty() -> gemini.cartasComunitarias
+            else -> ocr.cartasComunitarias
+        }
+
+        // Validar unicidad: no puede haber cartas duplicadas entre Hero y Board
+        val heroSet = bestHero.map { "${it.rank}_${it.suit}" }.toSet()
+        val cleanBoard = bestBoard.filter { "${it.rank}_${it.suit}" !in heroSet }
+
+        val fusedFase = when (cleanBoard.size) {
+            0 -> "Preflop"
+            in 1..3 -> "Flop"
+            4 -> "Turn"
+            5 -> "River"
+            else -> "River"
+        }
+
+        val heroStr = if (bestHero.isNotEmpty()) bestHero.joinToString(" ") { it.displayString } else "?"
+        val boardStr = if (cleanBoard.isNotEmpty()) " | Mesa: ${cleanBoard.joinToString(" ") { it.displayString }}" else ""
+        val source = if (gemini.cartasComunitarias.size >= ocr.cartasComunitarias.size) "Gemini" else "Gemini+OCR"
+        val statusMsg = "\u2705 $source: $heroStr$boardStr \u2022 ${latency}ms"
+
+        Log.d("FUSION", "Gemini: Hero=${gemini.cartasPropias.map { it.displayString }} Board=${gemini.cartasComunitarias.map { it.displayString }}")
+        Log.d("FUSION", "OCR:    Hero=${ocr.cartasPropias.map { it.displayString }} Board=${ocr.cartasComunitarias.map { it.displayString }}")
+        Log.d("FUSION", "FUSED:  Hero=${bestHero.map { it.displayString }} Board=${cleanBoard.map { it.displayString }}")
+
+        // Usar GTO del motor Gemini si tiene resultado, sino del OCR
+        return gemini.copy(
+            fase = fusedFase,
+            cartasPropias = bestHero,
+            cartasComunitarias = cleanBoard,
+            bote = if (gemini.bote > 0) gemini.bote else ocr.bote,
+            jugadores = if (gemini.jugadores in 2..9) gemini.jugadores else ocr.jugadores,
+            posicion = if (gemini.posicion.isNotBlank()) gemini.posicion else ocr.posicion,
+            dealerPosition = if (gemini.dealerDetected) gemini.dealerPosition else ocr.dealerPosition,
+            dealerDetected = gemini.dealerDetected || ocr.dealerDetected,
+            outs = if (gemini.outs.isNotBlank() && gemini.outs != "?") gemini.outs else ocr.outs,
+            winRate = if (gemini.winRate.isNotBlank() && gemini.winRate != "?") gemini.winRate else ocr.winRate,
+            gtoAction = if (gemini.gtoAction != GtoAction.UNKNOWN) gemini.gtoAction else ocr.gtoAction,
+            gtoActionValue = if (gemini.gtoActionValue.isNotBlank()) gemini.gtoActionValue else ocr.gtoActionValue,
+            latencyMs = latency,
+            statusMessage = statusMsg
+        )
     }
 
     private data class GeminiCallResult(
@@ -209,7 +280,20 @@ class GeminiPokerRepository {
                             isSimulation = false,
                             statusMessage = statusMsg
                         )
-                        return@withContext Result.success(finalParsed)
+                        // ------ PUNTO 1,3: FUSION GEMINI+OCR ------
+                        // Gemini OK. Ahora TAMBIEN ejecutar OCR local para fusionar mejores partes.
+                        val ocrState = try {
+                            com.example.service.LocalCardOcrDetector.detect(bitmap, currentState)
+                        } catch (e: Exception) {
+                            Log.w("FUSION", "OCR fusion failed: " + e.message)
+                            null
+                        }
+                        val fusedState = if (ocrState != null) {
+                            mergeGeminiAndOcr(finalParsed, ocrState, latency)
+                        } else {
+                            finalParsed
+                        }
+                        return@withContext Result.success(fusedState)
                     }
                 } else if (!callResult.errorMessage.isNullOrBlank()) {
                     geminiFailureReason = callResult.errorMessage
@@ -579,6 +663,16 @@ class GeminiPokerRepository {
                 } else {
                     ""
                 }
+
+            // Punto 30: Validar numCartasMesa y numCartasHero
+            val numHero = (jsonObj["numCartasHero"])?.jsonPrimitive?.intOrNull
+            val numMesa = (jsonObj["numCartasMesa"])?.jsonPrimitive?.intOrNull
+            if (numMesa != null && numMesa != communityCards.size && numMesa in 3..5) {
+                Log.w(TAG, "numCartasMesa=$numMesa but parsed ${communityCards.size} cards � Gemini may have missed cards")
+            }
+            if (numHero != null && numHero != holeCards.size && numHero == 2) {
+                Log.w(TAG, "numCartasHero=$numHero but parsed ${holeCards.size} cards � re-check Hero detection")
+            }
             }
         } catch (e: Exception) {
             Log.e(TAG, "Error parsing JSON response: $rawText", e)
