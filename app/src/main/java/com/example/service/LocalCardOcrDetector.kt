@@ -406,7 +406,7 @@ object LocalCardOcrDetector {
 
         // Texas Hold'em: se aceptan 2, 3, 4 o 5 cartas de mesa.
         // Si se detectan 2 cartas en Flop (ej. una carta con contraste menor), se acepta como Flop para no perder la fase ni el c√°lculo GTO.
-        return if (uniqueCards.size in 2..5) {
+        return if (uniqueCards.size in 3..5) {
             val rawCards = uniqueCards.take(5).map { PokerCard(it.rank, it.suit) }
             sanitizeDuplicateSuits(rawCards)
         } else {
@@ -706,7 +706,7 @@ object LocalCardOcrDetector {
                 val horizDiff = abs(c1.box.centerX() - c2.box.centerX())
 
                 // Dos cartas en mano est√°n una al lado de la otra
-                if (vertDiff.toFloat() < height * 0.12f && horizDiff.toFloat() in (width * 0.02f)..(width * 0.35f)) {
+                if (vertDiff.toFloat() < height * 0.12f && horizDiff.toFloat() in (width * 0.03f)..(width * 0.22f)) {
                     val score = (height - c1.box.centerY()) + (vertDiff * 2f)
                     if (score < bestPairScore) {
                         bestPairScore = score
@@ -820,11 +820,31 @@ object LocalCardOcrDetector {
         return sanitized
     }
 
+    /**
+     * Normaliza tokens OCR corrigiendo confusiones comunes de MLKit en fuentes de pÛker mÛvil.
+     * BUG 4 & 7: "1O" ? "10", "lO" ? "10", "I0" ? "10", "l0" ? "10",
+     * "S" en contexto de carta ? "5", "G" ? "6", "b" ? "6", "O" solo ? "Q" o "0"
+     */
+    private fun normalizeOcrToken(raw: String): String {
+        var s = raw
+        // Fix "10" misreads: "1O", "lO", "I0", "l0", "IO"
+        s = s.replace("1O", "10").replace("lO", "10").replace("I0", "10")
+            .replace("l0", "10").replace("IO", "10")
+        // Fix common single-char rank confusions (only apply to short tokens likely to be card ranks)
+        if (s.length <= 3) {
+            s = s.replace(Regex("(?<![A-Za-z])S(?![a-zA-Z])"), "5")  // S ? 5 (standalone)
+            s = s.replace(Regex("(?<![A-Za-z])G(?![a-zA-Z])"), "6")  // G ? 6 (standalone)
+            // "O" alone ? "Q" (common confusion, Q has a tail that MLKit misses)
+            if (s == "O" || s == "0") s = "Q"
+        }
+        return s
+    }
+
     private fun extractCardsFromToken(
         text: String,
         validRanks: Set<String>
     ): List<Pair<String, CardSuit?>> {
-        val clean = text.replace("[", "").replace("]", "").replace("(", "").replace(")", "").trim()
+        val clean = normalizeOcrToken(text.replace("[", "").replace("]", "").replace("(", "").replace(")", "").trim())
         val list = mutableListOf<Pair<String, CardSuit?>>()
         if (clean.isBlank()) return list
 
@@ -941,7 +961,7 @@ object LocalCardOcrDetector {
 
         if (total == 0) return true
         // V√°lido si tiene presencia de colores de carta o no es tapete puro en su totalidad
-        return (cardLikePixels.toFloat() / total) >= 0.08f || (feltPixels.toFloat() / total) < 0.85f
+        return (cardLikePixels.toFloat() / total) >= 0.22f || (feltPixels.toFloat() / total) < 0.70f
     }
 
     /**
@@ -957,8 +977,8 @@ object LocalCardOcrDetector {
 
         val sampleLeft = (box.left - 4).coerceIn(0, width - 1)
         val sampleTop = (box.top - 4).coerceIn(0, height - 1)
-        val sampleRight = (box.left + (box.width() * 2.8f).toInt()).coerceIn(sampleLeft, width - 1)
-        val sampleBottom = (box.top + (box.height() * 3.5f).toInt()).coerceIn(sampleTop, height - 1)
+        val sampleRight = (box.left + (box.width() * 1.8f).toInt()).coerceIn(sampleLeft, width - 1)
+        val sampleBottom = (box.top + (box.height() * 2.5f).toInt()).coerceIn(sampleTop, height - 1)
 
         var redCount = 0
         var blueCount = 0

@@ -41,7 +41,7 @@ object PokerImageProcessor {
             }
 
             // 1. Vista Macro: Mesa Completa (Escalada a 720p máximo para visión global ultrarrápida y ligera)
-            val maxMacroDim = 720
+            val maxMacroDim = 960
             val maxSourceDim = maxOf(width, height)
             val scaledMacro = if (maxSourceDim > maxMacroDim) {
                 val scale = maxMacroDim.toFloat() / maxSourceDim.toFloat()
@@ -57,10 +57,10 @@ object PokerImageProcessor {
 
             // 2. Micro-Zoom Cartas Comunitarias (Mesa / Flop / Turn / River: 5 cartas completas)
             // x: 8% a 92% del ancho, y: 34% a 65% del alto
-            val boardLeft = (width * 0.08f).toInt().coerceIn(0, width - 1)
-            val boardTop = (height * 0.34f).toInt().coerceIn(0, height - 1)
-            val boardWidth = (width * 0.84f).toInt().coerceIn(10, width - boardLeft)
-            val boardHeight = (height * 0.30f).toInt().coerceIn(10, height - boardTop)
+            val boardLeft = (width * 0.06f).toInt().coerceIn(0, width - 1)
+            val boardTop = (height * 0.30f).toInt().coerceIn(0, height - 1)
+            val boardWidth = (width * 0.88f).toInt().coerceIn(10, width - boardLeft)
+            val boardHeight = (height * 0.34f).toInt().coerceIn(10, height - boardTop)
 
             val rawBoard = Bitmap.createBitmap(source, boardLeft, boardTop, boardWidth, boardHeight)
             val enhancedBoard = enhanceContrast(rawBoard, contrast = 1.25f, brightness = 8f)
@@ -81,10 +81,10 @@ object PokerImageProcessor {
 
             // 3. Micro-Zoom Cartas Hero Asiento Inferior (GGPoker, PokerBros, PokerStars tapete)
             // x: 15% a 85% del ancho, y: 64% a 95% del alto (zona quirúrgica donde Hero tiene sus 2 cartas)
-            val heroLeft = (width * 0.15f).toInt().coerceIn(0, width - 1)
-            val heroTop = (height * 0.64f).toInt().coerceIn(0, height - 1)
-            val heroWidth = (width * 0.70f).toInt().coerceIn(10, width - heroLeft)
-            val heroHeight = (height * 0.31f).toInt().coerceIn(10, height - heroTop)
+            val heroLeft = (width * 0.12f).toInt().coerceIn(0, width - 1)
+            val heroTop = (height * 0.60f).toInt().coerceIn(0, height - 1)
+            val heroWidth = (width * 0.76f).toInt().coerceIn(10, width - heroLeft)
+            val heroHeight = (height * 0.37f).toInt().coerceIn(10, height - heroTop)
 
             val rawHero = Bitmap.createBitmap(source, heroLeft, heroTop, heroWidth, heroHeight)
             val enhancedHero = enhanceContrast(rawHero, contrast = 1.25f, brightness = 8f)

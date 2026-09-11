@@ -40,7 +40,7 @@ class GeminiPokerRepository {
         // 14000ms: tiempo óptimo para respuesta en redes móviles con latencia
         private const val TIMEOUT_MS = 14000L
         private const val MAX_IMAGE_DIMENSION = 960
-        private const val JPEG_COMPRESSION_QUALITY = 75
+        private const val JPEG_COMPRESSION_QUALITY = 88
         private const val ENDPOINT_BASE = "https://generativelanguage.googleapis.com/v1beta/models"
 
         @Volatile
@@ -109,7 +109,8 @@ class GeminiPokerRepository {
         2. Hero Hole Cards (ALWAYS EXACTLY 2 CARDS):
            - In GGPoker and PokerBros: Check the bottom-center seat. Hero's 2 cards are face-up, tilted in 3D perspective or overlapping. Read ranks & suits.
            - In PokerStars and BCPoker: Check BOTH the top-left digital pill AND the bottom-center avatar.
-           - Opponents' cards are face-down (card backs); NEVER read opponent card backs as cards!
+           - Opponents' cards are face-down (card backs with geometric patterns, solid dark/red/blue uniform color, or branded poker room logos). NEVER read opponent card backs as cards! Card backs have NO rank or suit symbols.
+           - FACE-UP cards show a white/light body with a visible rank (A,K,Q,J,10,9,8,7,6,5,4,3,2) and a colored suit symbol.
            - Under Hero's avatar, read any combination badge (e.g. 'trío de Ks', 'par de ases', 'doble pareja', 'two pair', 'flush') to verify!
         3. Community Cards (Center table):
            - Preflop = "" (none). Flop = 3 cards. Turn = 4 cards. River = 5 cards.
@@ -160,8 +161,7 @@ class GeminiPokerRepository {
     ): Result<HandState> = withContext(Dispatchers.IO) {
         val startTime = System.currentTimeMillis()
         val apiKey = ApiKeyManager.getApiKey(context)
-        val compressedBitmap = optimizeBitmap(bitmap)
-        var geminiFailureReason: String? = null
+                var geminiFailureReason: String? = null
 
         if (!apiKey.isNullOrBlank()) {
             try {
