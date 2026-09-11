@@ -314,32 +314,43 @@ class ScreenCaptureService : Service() {
      * Captura garantizada de frame 100% fresco directamente desde MediaProjection
      * después de haber ocultado el overlay, evitando frames cacheados o congelados.
      */
-    suspend fun captureFreshFrame(timeoutMs: Long = 350L): Bitmap? {
+    suspend fun captureFreshFrame(timeoutMs: Long = 400L): Bitmap? {
         val reader = imageReader ?: return lastCapturedBitmap
 
-        // 1. Si ya hay un frame disponible en el reader tras el delay de ocultamiento, tomarlo de inmediato
+        // 1. Drenar y descartar inmediatamente todos los frames obsoletos que aún contienen el overlay
         try {
-            val directImg = reader.acquireLatestImage()
-            if (directImg != null) {
-                val bmp = imageToBitmap(directImg)
-                directImg.close()
-                if (bmp != null) {
-                    lastCapturedBitmap = bmp
-                    return bmp
-                }
+            while (true) {
+                val stale = reader.acquireLatestImage() ?: break
+                stale.close()
             }
         } catch (e: Exception) {
-            // Buffer transitorio, pasar a deferred
+            // Buffer transitorio vaciado
         }
 
-        // 2. Si no hay frame inmediato, esperar el siguiente render de Android con timeout ágil (350ms)
+        // 2. Registrar CompletableDeferred para capturar el NUEVO frame renderizado por Android sin el overlay
         val deferred = CompletableDeferred<Bitmap>()
         pendingFrameDeferred = deferred
 
         return try {
             withTimeoutOrNull(timeoutMs) {
                 deferred.await()
-            } ?: lastCapturedBitmap
+            } ?: run {
+                // Si el compositor de Android no produjo un nuevo fotograma por estar la mesa estática,
+                // intentar adquirir el último frame del reader o fallback
+                try {
+                    val fallbackImg = reader.acquireLatestImage()
+                    if (fallbackImg != null) {
+                        val bmp = imageToBitmap(fallbackImg)
+                        fallbackImg.close()
+                        if (bmp != null) lastCapturedBitmap = bmp
+                        bmp
+                    } else {
+                        lastCapturedBitmap
+                    }
+                } catch (e: Exception) {
+                    lastCapturedBitmap
+                }
+            }
         } catch (e: Exception) {
             Log.w(TAG, "Timeout esperando frame fresco, usando último buffer disponible", e)
             lastCapturedBitmap

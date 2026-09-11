@@ -37,10 +37,10 @@ class GeminiPokerRepository {
 
     companion object {
         private const val TAG = "GeminiPokerRepo"
-        // 5500ms: tiempo óptimo para respuesta ultrarrápida sin bloquear el juego
-        private const val TIMEOUT_MS = 5500L
+        // 7000ms: tiempo óptimo para respuesta en redes móviles con latencia
+        private const val TIMEOUT_MS = 7000L
         private const val MAX_IMAGE_DIMENSION = 960
-        private const val JPEG_COMPRESSION_QUALITY = 80
+        private const val JPEG_COMPRESSION_QUALITY = 75
         private const val ENDPOINT_BASE = "https://generativelanguage.googleapis.com/v1beta/models"
 
         @Volatile
@@ -211,6 +211,8 @@ class GeminiPokerRepository {
         } else if (!geminiFailureReason.isNullOrBlank()) {
             val shortErr = if (geminiFailureReason.contains("400") || geminiFailureReason.contains("API key not valid", ignoreCase = true)) {
                 "API Key inválida"
+            } else if (geminiFailureReason.contains("404") || geminiFailureReason.contains("not found", ignoreCase = true)) {
+                "Gemini 3.8: 404 No disp."
             } else if (geminiFailureReason.contains("429") || geminiFailureReason.contains("RESOURCE_EXHAUSTED", ignoreCase = true)) {
                 "Cuota agotada"
             } else if (geminiFailureReason.contains("Timeout", ignoreCase = true)) {

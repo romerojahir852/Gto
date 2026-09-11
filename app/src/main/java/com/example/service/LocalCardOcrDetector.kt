@@ -51,13 +51,20 @@ object LocalCardOcrDetector {
         return try {
             val inputImage = InputImage.fromBitmap(bitmap, 0)
             val visionText = recognizer.process(inputImage).awaitTask()
-            val latency = System.currentTimeMillis() - startTime
+            val pass1Latency = System.currentTimeMillis() - startTime
 
-            val pass1State = parseVisionText(visionText, bitmap, currentState, latency)
+            var state = parseVisionText(visionText, bitmap, currentState, pass1Latency)
 
-            // Pass 2: Si en el escaneo general no se detectaron al menos 3 cartas de mesa,
-            // se ejecuta un micro-escaneo de ultra-alta resolución enfocado en el centro de la mesa
-            if (pass1State.cartasComunitarias.size < 3) {
+            // Paso 2A: Si no se detectaron las 2 cartas de Hero, escanear la Píldora Digital Superior con micro-crop 2.5x
+            if (state.cartasPropias.size < 2) {
+                val pillHero = detectHeroCardsFromTopPill(bitmap)
+                if (pillHero.size == 2) {
+                    state = state.copy(cartasPropias = pillHero)
+                }
+            }
+
+            // Paso 2B: Si no se detectaron al menos 3 cartas de mesa, escanear el centro del tapete con micro-crop 2.2x
+            if (state.cartasComunitarias.size < 3) {
                 val boardCardsCrop = detectCommunityCardsFromBoardCrop(bitmap)
                 if (boardCardsCrop.size >= 2) {
                     val updatedFase = when (boardCardsCrop.size) {
@@ -66,46 +73,64 @@ object LocalCardOcrDetector {
                         5 -> "River"
                         else -> "Flop"
                     }
-                    val heroCards = pass1State.cartasPropias
-                    val engineResult = if (heroCards.isNotEmpty()) {
-                        PokerGtoEngine.calculate(
-                            holeCards = heroCards,
-                            board = boardCardsCrop,
-                            jugadores = pass1State.jugadores,
-                            posicion = currentState.posicion,
-                            fase = updatedFase,
-                            bote = pass1State.bote,
-                            apuestaRival = currentState.apuestaRival
-                        )
-                    } else null
-
-                    val heroDisplay = if (heroCards.isNotEmpty()) heroCards.joinToString(" ") { it.displayString } else "—"
-                    val boardDisplay = " | Mesa: ${boardCardsCrop.joinToString(" ") { it.displayString }}"
-                    val totalLatency = System.currentTimeMillis() - startTime
-                    val status = "⚡ OCR Local: $heroDisplay$boardDisplay · ${totalLatency}ms"
-
-                    GTOStateManager.updateFromAnalysis(
+                    state = state.copy(
                         fase = updatedFase,
-                        bote = pass1State.bote,
-                        jugadores = pass1State.jugadores,
-                        dealerPos = currentState.dealerPosition,
-                        myPos = currentState.posicion
-                    )
-
-                    return pass1State.copy(
-                        fase = updatedFase,
-                        cartasComunitarias = boardCardsCrop,
-                        outs = engineResult?.outs ?: pass1State.outs,
-                        winRate = engineResult?.winRate ?: pass1State.winRate,
-                        gtoAction = engineResult?.action ?: pass1State.gtoAction,
-                        gtoActionValue = engineResult?.actionValue ?: pass1State.gtoActionValue,
-                        latencyMs = totalLatency,
-                        statusMessage = status
+                        cartasComunitarias = boardCardsCrop
                     )
                 }
             }
 
-            pass1State
+            // Recalcular GTO determinista con las cartas confirmadas
+            val heroCards = state.cartasPropias
+            val boardCards = state.cartasComunitarias
+            val finalFase = when (boardCards.size) {
+                0 -> "Preflop"
+                2, 3 -> "Flop"
+                4 -> "Turn"
+                5 -> "River"
+                else -> if (boardCards.size >= 2) "Flop" else "Preflop"
+            }
+
+            val engineResult = if (heroCards.isNotEmpty()) {
+                PokerGtoEngine.calculate(
+                    holeCards = heroCards,
+                    board = boardCards,
+                    jugadores = state.jugadores,
+                    posicion = currentState.posicion,
+                    fase = finalFase,
+                    bote = state.bote,
+                    apuestaRival = currentState.apuestaRival
+                )
+            } else null
+
+            val heroDisplay = if (heroCards.isNotEmpty()) heroCards.joinToString(" ") { it.displayString } else "—"
+            val boardDisplay = if (boardCards.isNotEmpty()) " | Mesa: ${boardCards.joinToString(" ") { it.displayString }}" else ""
+            val totalLatency = System.currentTimeMillis() - startTime
+            val status = if (heroCards.isNotEmpty() || boardCards.isNotEmpty()) {
+                "⚡ OCR Local: $heroDisplay$boardDisplay · ${totalLatency}ms"
+            } else {
+                "⚡ OCR Local: Mesa en escaneo · ${totalLatency}ms"
+            }
+
+            GTOStateManager.updateFromAnalysis(
+                fase = finalFase,
+                bote = state.bote,
+                jugadores = state.jugadores,
+                dealerPos = currentState.dealerPosition,
+                myPos = currentState.posicion
+            )
+
+            state.copy(
+                fase = finalFase,
+                cartasPropias = heroCards,
+                cartasComunitarias = boardCards,
+                outs = engineResult?.outs ?: state.outs,
+                winRate = engineResult?.winRate ?: state.winRate,
+                gtoAction = engineResult?.action ?: state.gtoAction,
+                gtoActionValue = engineResult?.actionValue ?: state.gtoActionValue,
+                latencyMs = totalLatency,
+                statusMessage = status
+            )
         } catch (e: Exception) {
             val latency = System.currentTimeMillis() - startTime
             Log.e(TAG, "OCR detection failed", e)
@@ -134,7 +159,8 @@ object LocalCardOcrDetector {
             "NIVEL", "MANO", "HAND", "TABLE", "HOLDEM", "TEXAS", "WIN", "PASAR", "APOSTAR",
             "GTO", "MIS", "CARTAS", "PROPIAS", "COMUNITARIAS", "EQUITY", "RATE", "OUTS", "PROYECTOS",
             "DECISIÓN", "DECISION", "ÓPTIMA", "OPTIMA", "RE-ANALIZAR", "REANALIZAR",
-            "JUGADORES", "POS", "BTN", "SB", "BB", "UTG", "MP", "CO", "FICHAS", "OCR", "LOCAL", "GEMINI", "FLASH"
+            "JUGADORES", "POS", "BTN", "SB", "BB", "UTG", "MP", "CO", "FICHAS", "OCR", "LOCAL", "GEMINI", "FLASH",
+            "POZO", "POKERSTARS", "DINERO", "FICTICIO", "ASIENTO", "LIBRE"
         )
 
         val candidateCards = mutableListOf<DetectedCard>()
@@ -439,6 +465,88 @@ object LocalCardOcrDetector {
     }
 
     /**
+     * Detección de alta fidelidad de cartas de Hero en la Píldora Digital Superior (Top Pill).
+     * En salas móviles (PokerStars, BC Poker, GGPoker, ClubGG), la esquina superior izquierda
+     * contiene un badge digital horizontal con las cartas de Hero y sus palos cromáticos.
+     */
+    suspend fun detectHeroCardsFromTopPill(fullBitmap: Bitmap): List<PokerCard> {
+        val width = fullBitmap.width
+        val height = fullBitmap.height
+
+        val pillX = (width * 0.03f).toInt().coerceIn(0, width - 1)
+        val pillY = (height * 0.03f).toInt().coerceIn(0, height - 1)
+        val pillW = (width * 0.40f).toInt().coerceIn(10, width - pillX)
+        val pillH = (height * 0.12f).toInt().coerceIn(10, height - pillY)
+
+        val cropped = try {
+            Bitmap.createBitmap(fullBitmap, pillX, pillY, pillW, pillH)
+        } catch (e: Exception) {
+            return emptyList()
+        }
+
+        val scaledW = (pillW * 2.5f).toInt()
+        val scaledH = (pillH * 2.5f).toInt()
+        val scaled = Bitmap.createScaledBitmap(cropped, scaledW, scaledH, true)
+
+        val validRanks = setOf("A", "K", "Q", "J", "10", "9", "8", "7", "6", "5", "4", "3", "2")
+        val foundCards = mutableListOf<DetectedCard>()
+
+        try {
+            val inputImage = InputImage.fromBitmap(scaled, 0)
+            val visionText = recognizer.process(inputImage).awaitTask()
+
+            for (block in visionText.textBlocks) {
+                for (line in block.lines) {
+                    for (element in line.elements) {
+                        val text = element.text.trim()
+                        val box = element.boundingBox ?: continue
+                        val extracted = extractCardsFromToken(text, validRanks)
+                        if (extracted.isEmpty()) continue
+
+                        val mappedLeft = pillX + (box.left / 2.5f).toInt()
+                        val mappedTop = pillY + (box.top / 2.5f).toInt()
+                        val mappedRight = pillX + (box.right / 2.5f).toInt()
+                        val mappedBottom = pillY + (box.bottom / 2.5f).toInt()
+                        val fullBox = Rect(mappedLeft, mappedTop, mappedRight, mappedBottom)
+
+                        val count = extracted.size
+                        for (idx in 0 until count) {
+                            val (rank, explicitSuit) = extracted[idx]
+                            val subBox = if (count > 1) {
+                                val subW = fullBox.width() / count
+                                Rect(fullBox.left + (idx * subW), fullBox.top, fullBox.left + ((idx + 1) * subW), fullBox.bottom)
+                            } else {
+                                fullBox
+                            }
+                            val suit = explicitSuit ?: sampleCardSuitFromPixels(fullBitmap, subBox)
+                            foundCards.add(DetectedCard(rank, suit, subBox))
+                        }
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Pill OCR failed", e)
+        } finally {
+            if (!cropped.isRecycled) cropped.recycle()
+            if (!scaled.isRecycled) scaled.recycle()
+        }
+
+        val sorted = foundCards.sortedBy { it.box.left }
+        val unique = mutableListOf<DetectedCard>()
+        for (c in sorted) {
+            val isDup = unique.any { abs(it.box.centerX() - c.box.centerX()) < (width * 0.045f) }
+            if (!isDup) unique.add(c)
+        }
+
+        return if (unique.size >= 2) {
+            val two = unique.take(2)
+            listOf(PokerCard(two[0].rank, two[0].suit), PokerCard(two[1].rank, two[1].suit))
+        } else {
+            emptyList()
+        }
+    }
+
+    /**
      * Detección de cartas del jugador (Hero) combinando dos fuentes de alta confianza:
      * 1. Badge digital en la parte superior (PokerStars, GGPoker, ClubGG).
      * 2. Cartas en el tapete de juego frente al avatar (mitad inferior).
@@ -726,39 +834,42 @@ object LocalCardOcrDetector {
         val width = bitmap.width
         val height = bitmap.height
 
-        val sampleLeft = box.left.coerceIn(0, width - 1)
-        val sampleTop = box.top.coerceIn(0, height - 1)
-        val sampleRight = (box.right + (box.width() * 0.5f).toInt()).coerceIn(sampleLeft, width - 1)
-        val sampleBottom = (box.bottom + (box.height() * 1.2f).toInt()).coerceIn(sampleTop, height - 1)
+        val sampleLeft = (box.left - 4).coerceIn(0, width - 1)
+        val sampleTop = (box.top - 4).coerceIn(0, height - 1)
+        val sampleRight = (box.left + (box.width() * 2.8f).toInt()).coerceIn(sampleLeft, width - 1)
+        val sampleBottom = (box.top + (box.height() * 3.5f).toInt()).coerceIn(sampleTop, height - 1)
 
         var redCount = 0
         var blueCount = 0
         var greenCount = 0
         var darkCount = 0
 
-        for (x in sampleLeft..sampleRight step 2) {
-            for (y in sampleTop..sampleBottom step 2) {
+        val stepX = ((sampleRight - sampleLeft) / 12).coerceAtLeast(1)
+        val stepY = ((sampleBottom - sampleTop) / 12).coerceAtLeast(1)
+
+        for (x in sampleLeft..sampleRight step stepX) {
+            for (y in sampleTop..sampleBottom step stepY) {
                 val pixel = bitmap.getPixel(x, y)
                 val r = Color.red(pixel)
                 val g = Color.green(pixel)
                 val b = Color.blue(pixel)
 
                 // Omitir fondo blanco puro de la carta
-                if (r > 215 && g > 215 && b > 215) continue
+                if (r > 220 && g > 220 && b > 220) continue
 
-                // 1. Azul (Diamantes en 4-color deck)
+                // 1. Azul (Diamantes en barajas de 4 colores, ej. PokerStars)
                 if (b > 105 && b > r * 1.15f && b >= g * 0.95f) {
                     blueCount++
                 }
-                // 2. Verde (Tréboles en 4-color deck)
+                // 2. Verde (Tréboles en barajas de 4 colores, ej. PokerStars)
                 else if (g > 95 && g > r * 1.15f && g > b * 1.05f) {
                     greenCount++
                 }
-                // 3. Rojo (Corazones en 4-color deck y corazones/diamantes en 2-color)
+                // 3. Rojo (Corazones en 4-color y corazones/diamantes en 2-color)
                 else if (r > 120 && r > g * 1.25f && r > b * 1.25f) {
                     redCount++
                 }
-                // 4. Oscuro (Picas en 4-color deck y picas/tréboles en 2-color)
+                // 4. Oscuro (Picas en 4-color y picas/tréboles en 2-color)
                 else if (r < 80 && g < 80 && b < 80) {
                     darkCount++
                 }
@@ -766,10 +877,10 @@ object LocalCardOcrDetector {
         }
 
         return when {
-            blueCount > 4 && blueCount >= greenCount -> CardSuit.DIAMONDS
-            greenCount > 4 -> CardSuit.CLUBS
-            redCount > 4 -> CardSuit.HEARTS
-            darkCount > 4 -> CardSuit.SPADES
+            blueCount > 3 && blueCount >= greenCount -> CardSuit.DIAMONDS
+            greenCount > 3 -> CardSuit.CLUBS
+            redCount > 3 -> CardSuit.HEARTS
+            darkCount > 3 -> CardSuit.SPADES
             else -> CardSuit.SPADES
         }
     }

@@ -318,4 +318,37 @@ class ExampleUnitTest {
         assertTrue(decision.action == GtoAction.CHECK || decision.action == GtoAction.CALL)
         assertTrue(decision.outs.contains("Pareja") || decision.outs.contains("3"))
     }
+
+    @Test
+    fun `board memory prevents downgrade to preflop when hero cards remain unchanged`() {
+        val hero = listOf(
+            com.example.data.PokerCard("8", com.example.data.CardSuit.HEARTS),
+            com.example.data.PokerCard("6", com.example.data.CardSuit.CLUBS)
+        )
+        val flop = listOf(
+            com.example.data.PokerCard("7", com.example.data.CardSuit.DIAMONDS),
+            com.example.data.PokerCard("9", com.example.data.CardSuit.DIAMONDS),
+            com.example.data.PokerCard("A", com.example.data.CardSuit.CLUBS)
+        )
+
+        PokerGameStateManager.updateIncremental(
+            cartasPropias = hero,
+            cartasComunitarias = flop,
+            fase = "Flop"
+        )
+
+        assertEquals("Flop", PokerGameStateManager.handState.value.fase)
+        assertEquals(3, PokerGameStateManager.handState.value.cartasComunitarias.size)
+
+        // Transient frame with empty board due to button press or animation
+        PokerGameStateManager.updateIncremental(
+            cartasPropias = hero,
+            cartasComunitarias = emptyList(),
+            fase = "Preflop"
+        )
+
+        // Board must NOT be wiped to empty, and phase must NOT downgrade to Preflop
+        assertEquals("Flop", PokerGameStateManager.handState.value.fase)
+        assertEquals(3, PokerGameStateManager.handState.value.cartasComunitarias.size)
+    }
 }

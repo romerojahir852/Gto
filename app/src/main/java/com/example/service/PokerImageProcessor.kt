@@ -40,8 +40,8 @@ object PokerImageProcessor {
                 return parts
             }
 
-            // 1. Vista Macro: Mesa Completa (Escalada a 960p máximo para visión global ultrarrápida)
-            val maxMacroDim = 960
+            // 1. Vista Macro: Mesa Completa (Escalada a 720p máximo para visión global ultrarrápida y ligera)
+            val maxMacroDim = 720
             val maxSourceDim = maxOf(width, height)
             val scaledMacro = if (maxSourceDim > maxMacroDim) {
                 val scale = maxMacroDim.toFloat() / maxSourceDim.toFloat()
@@ -66,7 +66,7 @@ object PokerImageProcessor {
             val enhancedBoard = enhanceContrast(rawBoard, contrast = 1.25f, brightness = 8f)
             if (enhancedBoard != rawBoard) rawBoard.recycle()
 
-            val maxCropDim = 640
+            val maxCropDim = 480
             val finalBoard = if (maxOf(enhancedBoard.width, enhancedBoard.height) > maxCropDim) {
                 val scale = maxCropDim.toFloat() / maxOf(enhancedBoard.width, enhancedBoard.height).toFloat()
                 val targetW = (enhancedBoard.width * scale).toInt().coerceAtLeast(1)
@@ -90,8 +90,9 @@ object PokerImageProcessor {
             val enhancedHero = enhanceContrast(rawHero, contrast = 1.25f, brightness = 8f)
             if (enhancedHero != rawHero) rawHero.recycle()
 
-            val finalHero = if (maxOf(enhancedHero.width, enhancedHero.height) > maxCropDim) {
-                val scale = maxCropDim.toFloat() / maxOf(enhancedHero.width, enhancedHero.height).toFloat()
+            val maxHeroCropDim = 480
+            val finalHero = if (maxOf(enhancedHero.width, enhancedHero.height) > maxHeroCropDim) {
+                val scale = maxHeroCropDim.toFloat() / maxOf(enhancedHero.width, enhancedHero.height).toFloat()
                 val targetW = (enhancedHero.width * scale).toInt().coerceAtLeast(1)
                 val targetH = (enhancedHero.height * scale).toInt().coerceAtLeast(1)
                 val scaled = Bitmap.createScaledBitmap(enhancedHero, targetW, targetH, true)
