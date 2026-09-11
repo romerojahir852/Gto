@@ -268,4 +268,54 @@ class ExampleUnitTest {
         assertEquals(2596.0, com.example.service.LocalCardOcrDetector.parsePokerNumericString("$ 2,596") ?: 0.0, 0.01)
         assertEquals(52.0, com.example.service.LocalCardOcrDetector.parsePokerNumericString("52 BB") ?: 0.0, 0.01)
     }
+
+    @Test
+    fun `gto engine evaluates Screenshot 1 PokerStars Flop 8h 6c on 7d 9d Ac as 8-outs OESD Call`() {
+        // PokerStars screenshot 1: Hero holds 8h 6c on board 7d 9d Ac
+        val hero = listOf(
+            com.example.data.PokerCard("8", com.example.data.CardSuit.HEARTS),
+            com.example.data.PokerCard("6", com.example.data.CardSuit.CLUBS)
+        )
+        val flop = listOf(
+            com.example.data.PokerCard("7", com.example.data.CardSuit.DIAMONDS),
+            com.example.data.PokerCard("9", com.example.data.CardSuit.DIAMONDS),
+            com.example.data.PokerCard("A", com.example.data.CardSuit.CLUBS)
+        )
+        val decision = com.example.data.PokerGtoEngine.calculate(
+            holeCards = hero,
+            board = flop,
+            jugadores = 7,
+            posicion = "BTN",
+            fase = "Flop"
+        )
+        // 6-7-8-9 forms an open-ended straight draw (OESD) -> 8 outs!
+        assertEquals(GtoAction.CALL, decision.action)
+        assertTrue(decision.outs.contains("8") || decision.outs.contains("Escalera"))
+        assertTrue("Win equity must reflect strong straight draw", decision.winRate.replace("%", "").toInt() >= 40)
+    }
+
+    @Test
+    fun `gto engine evaluates Screenshot 5 BC Poker Turn 10h 4d on 4c Ac 7h Qd as active Turn pair`() {
+        // BC Poker screenshot 5: Hero holds 10h 4d on board 4c Ac 7h Qd
+        val hero = listOf(
+            com.example.data.PokerCard("10", com.example.data.CardSuit.HEARTS),
+            com.example.data.PokerCard("4", com.example.data.CardSuit.DIAMONDS)
+        )
+        val turnBoard = listOf(
+            com.example.data.PokerCard("4", com.example.data.CardSuit.CLUBS),
+            com.example.data.PokerCard("A", com.example.data.CardSuit.CLUBS),
+            com.example.data.PokerCard("7", com.example.data.CardSuit.HEARTS),
+            com.example.data.PokerCard("Q", com.example.data.CardSuit.DIAMONDS)
+        )
+        val decision = com.example.data.PokerGtoEngine.calculate(
+            holeCards = hero,
+            board = turnBoard,
+            jugadores = 6,
+            posicion = "BTN",
+            fase = "Turn"
+        )
+        // Hero has a pair of 4s on the Turn -> Pot control / Check, NOT Preflop Fold!
+        assertTrue(decision.action == GtoAction.CHECK || decision.action == GtoAction.CALL)
+        assertTrue(decision.outs.contains("Pareja") || decision.outs.contains("3"))
+    }
 }

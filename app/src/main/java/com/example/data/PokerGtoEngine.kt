@@ -42,14 +42,14 @@ object PokerGtoEngine {
         }
 
         val effectiveFase = when (board.size) {
-            0 -> "Preflop"
-            3 -> "Flop"
+            0 -> if (fase.equals("Preflop", ignoreCase = true)) "Preflop" else fase
+            2, 3 -> "Flop"
             4 -> "Turn"
             5 -> "River"
-            else -> fase
+            else -> if (board.isNotEmpty()) "Flop" else fase
         }
 
-        return if (effectiveFase.equals("Preflop", ignoreCase = true) || board.isEmpty()) {
+        return if (board.isEmpty() && effectiveFase.equals("Preflop", ignoreCase = true)) {
             calculatePreflop(holeCards, jugadores, posicion)
         } else {
             calculatePostflop(holeCards, board, jugadores, posicion, effectiveFase)

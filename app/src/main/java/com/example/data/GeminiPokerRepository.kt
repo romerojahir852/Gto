@@ -37,8 +37,8 @@ class GeminiPokerRepository {
 
     companion object {
         private const val TAG = "GeminiPokerRepo"
-        // 4500ms: tiempo óptimo para respuesta ultrarrápida sin bloquear el juego
-        private const val TIMEOUT_MS = 4500L
+        // 5500ms: tiempo óptimo para respuesta ultrarrápida sin bloquear el juego
+        private const val TIMEOUT_MS = 5500L
         private const val MAX_IMAGE_DIMENSION = 960
         private const val JPEG_COMPRESSION_QUALITY = 80
         private const val ENDPOINT_BASE = "https://generativelanguage.googleapis.com/v1beta/models"
@@ -48,10 +48,12 @@ class GeminiPokerRepository {
     }
 
     /**
-     * Cascada de modelos de última generación Google Gemini:
-     * Endpoint principal gemini-3.8-flash y fallback estricto a gemini-3.5-flash.
+     * Cascada multi-modelo ultra-resiliente de Google Gemini Flash.
+     * Soporta los modelos activos de alta velocidad con fallback automático.
      */
     private val candidateModels = listOf(
+        "gemini-2.5-flash",
+        "gemini-2.0-flash",
         "gemini-3.8-flash",
         "gemini-3.5-flash"
     )
@@ -62,8 +64,8 @@ class GeminiPokerRepository {
     private val ktorClient by lazy {
         HttpClient(Android) {
             engine {
-                connectTimeout = 3_000
-                socketTimeout = 4_000
+                connectTimeout = 4_000
+                socketTimeout = 5_000
             }
             expectSuccess = false
         }
@@ -172,9 +174,11 @@ class GeminiPokerRepository {
                     val parsedState = parseSurgicalResponse(responseText, currentState, latency)
                     if (parsedState.cartasPropias.isNotEmpty() || parsedState.cartasComunitarias.isNotEmpty()) {
                         val modelLabel = when (callResult.modelUsed) {
+                            "gemini-2.5-flash" -> "Gemini 2.5 Flash"
+                            "gemini-2.0-flash" -> "Gemini 2.0 Flash"
                             "gemini-3.8-flash" -> "Gemini 3.8 Flash"
                             "gemini-3.5-flash" -> "Gemini 3.5 Flash"
-                            else -> callResult.modelUsed ?: "Gemini 3.8 Flash"
+                            else -> callResult.modelUsed ?: "Gemini Flash"
                         }
                         val statusMsg = "⚡ $modelLabel: ${parsedState.cartasPropias.joinToString(" ") { it.displayString }} | Mesa: ${parsedState.cartasComunitarias.joinToString(" ") { it.displayString }} · ${latency}ms"
                         val finalParsed = parsedState.copy(statusMessage = statusMsg)
@@ -567,12 +571,15 @@ class GeminiPokerRepository {
             Log.e(TAG, "Error parsing JSON response: $rawText", e)
         }
 
-        val detectedFase = parsedFase ?: when (communityCards.size) {
-            0 -> "Preflop"
-            3 -> "Flop"
-            4 -> "Turn"
-            5 -> "River"
-            else -> currentState.fase
+        val detectedFase = if (communityCards.isNotEmpty()) {
+            when (communityCards.size) {
+                2, 3 -> "Flop"
+                4 -> "Turn"
+                5 -> "River"
+                else -> if (parsedFase != null && !parsedFase.equals("Preflop", ignoreCase = true)) parsedFase else "Flop"
+            }
+        } else {
+            parsedFase ?: "Preflop"
         }
 
         GTOStateManager.updateFromAnalysis(

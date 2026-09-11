@@ -184,9 +184,9 @@ object LocalCardOcrDetector {
         val finalPlayers = detectedPlayersCount ?: currentState.jugadores
 
         // 4. Dedicated Community Cards (Board) Detector
-        // Central area: y between 32% and 62% of table, x between 8% and 92%
+        // Central area: y between 32% and 65% of table, x between 8% and 92%
         val boardCandidates = candidateCards.filter {
-            it.box.centerY().toFloat() in (height * 0.32f)..(height * 0.62f) &&
+            it.box.centerY().toFloat() in (height * 0.32f)..(height * 0.65f) &&
             it.box.centerX().toFloat() in (width * 0.08f)..(width * 0.92f)
         }
 
@@ -197,10 +197,10 @@ object LocalCardOcrDetector {
 
         val detectedFase = when (boardCards.size) {
             0 -> "Preflop"
-            3 -> "Flop"
+            2, 3 -> "Flop"
             4 -> "Turn"
             5 -> "River"
-            else -> if (boardCards.size >= 3) "Flop" else "Preflop"
+            else -> if (boardCards.size >= 2) "Flop" else "Preflop"
         }
 
         val updatedBote = detectedPot ?: currentState.bote
@@ -300,9 +300,9 @@ object LocalCardOcrDetector {
             }
         }
 
-        // Texas Hold'em: sólo se aceptan 3, 4 o 5 cartas de mesa.
-        // Si hay 1 o 2 cartas aisladas (ej. un número de apuesta o ficha), NO es una mesa válida.
-        return if (uniqueCards.size in 3..5) {
+        // Texas Hold'em: se aceptan 2, 3, 4 o 5 cartas de mesa.
+        // Si se detectan 2 cartas en Flop (ej. una carta con contraste menor), se acepta como Flop para no perder la fase ni el cálculo GTO.
+        return if (uniqueCards.size in 2..5) {
             val rawCards = uniqueCards.take(5).map { PokerCard(it.rank, it.suit) }
             sanitizeDuplicateSuits(rawCards)
         } else {
@@ -469,27 +469,38 @@ object LocalCardOcrDetector {
     ): List<Pair<String, CardSuit?>> {
         val clean = text.replace("[", "").replace("]", "").replace("(", "").replace(")", "").trim()
         val list = mutableListOf<Pair<String, CardSuit?>>()
+        if (clean.isBlank()) return list
 
-        val singleMatch = Regex("""^(10|[AKQJT2-9])([♥♦♣♠hdcs])?$""", RegexOption.IGNORE_CASE).find(clean)
-        if (singleMatch != null) {
-            val rawRank = singleMatch.groupValues[1]
-            val rank = if (rawRank.equals("T", ignoreCase = true)) "10" else rawRank.uppercase()
-            val suitChar = singleMatch.groupValues[2].firstOrNull()
-            val explicitSuit = suitChar?.let { parseSuitChar(it) }
-            list.add(rank to explicitSuit)
-            return list
+        // Separar tokens por espacios, pipes, guiones, comas, etc.
+        val tokens = clean.split(Regex("""[\s|,;/\-]+""")).filter { it.isNotBlank() }
+
+        for (tok in tokens) {
+            val singleMatch = Regex("""^(10|[AKQJT2-9])([♥♦♣♠hdcs])?[.,]?$""", RegexOption.IGNORE_CASE).find(tok)
+            if (singleMatch != null) {
+                val rawRank = singleMatch.groupValues[1]
+                val rank = if (rawRank.equals("T", ignoreCase = true)) "10" else rawRank.uppercase()
+                val suitChar = singleMatch.groupValues[2].firstOrNull()
+                val explicitSuit = suitChar?.let { parseSuitChar(it) }
+                list.add(rank to explicitSuit)
+                continue
+            }
+
+            // Cartas pegadas en un solo token (ej. "104", "AK", "98", "QQ", "72")
+            if (tok.length in 2..4) {
+                val pairMatch = Regex("""^(10|[AKQJT2-9])(10|[AKQJT2-9])$""", RegexOption.IGNORE_CASE).find(tok)
+                if (pairMatch != null) {
+                    val r1 = pairMatch.groupValues[1].let { if (it.equals("T", true)) "10" else it.uppercase() }
+                    val r2 = pairMatch.groupValues[2].let { if (it.equals("T", true)) "10" else it.uppercase() }
+                    list.add(r1 to null)
+                    list.add(r2 to null)
+                    continue
+                }
+            }
         }
 
-        // Reconocer pares de cartas unidas (ej: "10 4", "104", "9 8", "AK", "QQ", "KJ")
-        val pairMatch = Regex("""^(10|[AKQJT2-9])\s*(10|[AKQJT2-9])$""", RegexOption.IGNORE_CASE).find(clean)
-        if (pairMatch != null) {
-            val r1 = pairMatch.groupValues[1].let { if (it.equals("T", true)) "10" else it.uppercase() }
-            val r2 = pairMatch.groupValues[2].let { if (it.equals("T", true)) "10" else it.uppercase() }
-            list.add(r1 to null)
-            list.add(r2 to null)
-            return list
-        }
+        if (list.isNotEmpty()) return list
 
+        // Fallback para caracteres repetidos (ej. "QQ", "KK")
         if (clean.length in 2..3 && clean.all { it.equals(clean[0], ignoreCase = true) }) {
             val charUpper = clean[0].uppercaseChar().toString()
             if (validRanks.contains(charUpper) || charUpper == "T") {
@@ -514,8 +525,9 @@ object LocalCardOcrDetector {
     }
 
     /**
-     * Verifica que el elemento esté sobre el cuerpo blanco/claro de un naipe de póker.
-     * Muestrea hacia la derecha y hacia abajo desde la posición del glifo superior izquierdo.
+     * Verifica que el elemento esté sobre el cuerpo de un naipe o glifo de póker.
+     * Admite naipes blancos (BC Poker/GGPoker), naipes de 4 colores con cuerpo azul/verde (PokerStars),
+     * glifos oscuros o de color, descartando únicamente el tapete puro verde de fondo.
      */
     private fun isCardSurface(bitmap: Bitmap, box: Rect): Boolean {
         val width = bitmap.width
@@ -528,7 +540,8 @@ object LocalCardOcrDetector {
         val left = (box.left - 4).coerceAtLeast(0)
         val top = (box.top - 4).coerceAtLeast(0)
 
-        var brightCount = 0
+        var cardLikePixels = 0
+        var feltPixels = 0
         var total = 0
 
         val stepX = ((right - left) / 7).coerceAtLeast(1)
@@ -541,15 +554,37 @@ object LocalCardOcrDetector {
                 val g = Color.green(pixel)
                 val b = Color.blue(pixel)
 
-                // Fondo blanco de naipe
-                if ((r > 165 && g > 165 && b > 165) || (r + g + b > 510)) {
-                    brightCount++
+                // 1. Cuerpo blanco / claro o glifo blanco
+                if ((r > 150 && g > 150 && b > 150) || (r + g + b > 450)) {
+                    cardLikePixels++
+                }
+                // 2. Azul (cuerpo azul PokerStars ♦ o pip azul)
+                else if (b > 95 && b > r * 1.15f && b >= g * 0.95f) {
+                    cardLikePixels++
+                }
+                // 3. Verde (cuerpo verde PokerStars ♣ o pip verde)
+                else if (g > 95 && g > r * 1.15f && g > b * 1.05f) {
+                    cardLikePixels++
+                }
+                // 4. Rojo (pip de corazones ♥ o diamantes 2-color)
+                else if (r > 115 && r > g * 1.25f && r > b * 1.25f) {
+                    cardLikePixels++
+                }
+                // 5. Oscuro (picas ♠ o texto negro)
+                else if (r < 75 && g < 75 && b < 75) {
+                    cardLikePixels++
+                }
+                // 6. Tapete verde puro de mesa
+                else if (g in 65..145 && r < 55 && b < 65 && g > r * 1.5f) {
+                    feltPixels++
                 }
                 total++
             }
         }
 
-        return total > 0 && (brightCount.toFloat() / total) >= 0.15f
+        if (total == 0) return true
+        // Válido si tiene presencia de colores de carta o no es tapete puro en su totalidad
+        return (cardLikePixels.toFloat() / total) >= 0.08f || (feltPixels.toFloat() / total) < 0.85f
     }
 
     /**
