@@ -216,7 +216,7 @@ object LocalCardOcrDetector {
                 val horizDiff = abs(c1.box.centerX() - c2.box.centerX())
 
                 // Hero cards are adjacent side-by-side (vertDiff < 8% height, horizDiff in 2%..25% width)
-                if (vertDiff.toFloat() < height * 0.08f && horizDiff.toFloat() in (width * 0.02f)..(width * 0.25f)) {
+                if (vertDiff.toFloat() < height * 0.10f && horizDiff.toFloat() in (width * 0.02f)..(width * 0.32f)) {
                     // Favor pairs located at the bottom of the table
                     val score = (height - c1.box.centerY()) + (vertDiff * 2f)
                     if (score < bestPairScore) {
@@ -452,6 +452,16 @@ object LocalCardOcrDetector {
             return list
         }
 
+        // Reconocer pares de cartas unidas por solapamiento visual (e.g. "10 4", "104", "AK", "J9")
+        val pairMatch = Regex("""^(10|[AKQJT2-9])\s*(10|[AKQJT2-9])$""", RegexOption.IGNORE_CASE).find(clean)
+        if (pairMatch != null) {
+            val r1 = pairMatch.groupValues[1].let { if (it.equals("T", true)) "10" else it.uppercase() }
+            val r2 = pairMatch.groupValues[2].let { if (it.equals("T", true)) "10" else it.uppercase() }
+            list.add(r1 to null)
+            list.add(r2 to null)
+            return list
+        }
+
         if (clean.length in 2..3 && clean.all { it.equals(clean[0], ignoreCase = true) }) {
             val charUpper = clean[0].uppercaseChar().toString()
             if (validRanks.contains(charUpper) || charUpper == "T") {
@@ -480,16 +490,18 @@ object LocalCardOcrDetector {
      * Samples around the glyph so black letter strokes do not cause false negative rejections.
      */
     private fun isLikelyCardSurface(bitmap: Bitmap, box: Rect): Boolean {
-        val cardLeft = (box.left - 12).coerceIn(0, bitmap.width - 1)
-        val cardRight = (box.right + 25).coerceIn(0, bitmap.width - 1)
-        val cardTop = (box.top - 8).coerceIn(0, bitmap.height - 1)
-        val cardBottom = (box.bottom + 25).coerceIn(0, bitmap.height - 1)
+        val marginX = (box.width() * 0.35f).toInt().coerceIn(4, 30)
+        val marginY = (box.height() * 0.35f).toInt().coerceIn(4, 30)
+        val cardLeft = (box.left - marginX).coerceIn(0, bitmap.width - 1)
+        val cardRight = (box.right + marginX).coerceIn(0, bitmap.width - 1)
+        val cardTop = (box.top - marginY).coerceIn(0, bitmap.height - 1)
+        val cardBottom = (box.bottom + marginY).coerceIn(0, bitmap.height - 1)
 
         var brightCount = 0
         var total = 0
 
-        val stepX = ((cardRight - cardLeft) / 5).coerceAtLeast(1)
-        val stepY = ((cardBottom - cardTop) / 5).coerceAtLeast(1)
+        val stepX = ((cardRight - cardLeft) / 6).coerceAtLeast(1)
+        val stepY = ((cardBottom - cardTop) / 6).coerceAtLeast(1)
 
         for (x in cardLeft..cardRight step stepX) {
             for (y in cardTop..cardBottom step stepY) {
@@ -498,25 +510,17 @@ object LocalCardOcrDetector {
                 val g = Color.green(pixel)
                 val b = Color.blue(pixel)
 
-                // Playing card face background is white / light (r,g,b > 115 or sum > 350)
-                if ((r + g + b) > 350 || (r > 115 && g > 115 && b > 115)) {
+                // Playing card face background is white / light (r,g,b > 105 or sum > 320)
+                if ((r + g + b) > 320 || (r > 105 && g > 105 && b > 105)) {
                     brightCount++
                 }
                 total++
             }
         }
 
-        return total > 0 && (brightCount.toFloat() / total) >= 0.18f
+        return total > 0 && (brightCount.toFloat() / total) >= 0.10f
     }
 
-    /**
-     * Inspects the pixel color palette in and around the card rank bounding box.
-     * Accurately distinguishes:
-     * - Red: Hearts (or 2-color Diamonds)
-     * - Blue: Diamonds (4-color deck)
-     * - Green: Clubs (4-color deck)
-     * - Dark/Black: Spades (or 2-color Clubs)
-     */
     private fun sampleCardSuitFromPixels(bitmap: Bitmap, box: Rect): CardSuit {
         val sampleLeft = (box.left + 2).coerceIn(0, bitmap.width - 1)
         val sampleTop = (box.top + 2).coerceIn(0, bitmap.height - 1)

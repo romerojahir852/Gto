@@ -28,6 +28,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Remove
@@ -39,8 +40,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.ui.platform.LocalClipboardManager
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
@@ -56,6 +55,8 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -71,16 +72,13 @@ import com.example.data.VisualOutItem
 import com.example.ui.components.PokerCardBadge
 
 /**
- * High-performance, reactive Texas Hold'em HUD Overlay.
- * 1. Draggable FloatingActionButton (Trigger) with minimal touch latency.
- * 2. Expandable / Collapsible Result Panel ("La Nube") with State:
- *    - Fase (Preflop, Flop, Turn, River)
- *    - Bote & Apuesta Rival
- *    - Cartas Propias & Mesa
- *    - Outs mapped immediately to local graphical drawables & badges
- *    - Win Rate & GTO Optimal Decision
- * 3. Sub-second latency badge
- * 4. Close 'X' button to collapse panel while keeping trigger accessible.
+ * Compact Pro Texas Hold'em HUD Overlay.
+ * 
+ * Diseñado específicamente para pantallas móviles de póker (GGPoker, PokerStars, Suprema):
+ * 1. Factor de forma ultra-compacto (<180dp de alto) para no obstruir la mesa, cartas ni pozos.
+ * 2. Barra de configuración plegable con botón de ajuste rápido (⚙).
+ * 3. Selector manual de unidades BB / Fichas instantáneo.
+ * 4. Latencia sub-segundo con soporte para Gemini Serie 3 Flash y OCR local offline.
  */
 @Composable
 fun FloatingPokerHud(
@@ -91,8 +89,10 @@ fun FloatingPokerHud(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
+    val clipboardManager = LocalClipboardManager.current
     var showApiKeyDialog by remember { mutableStateOf(false) }
     var enteredKey by remember { mutableStateOf(com.example.data.ApiKeyManager.getApiKey(context) ?: "") }
+    var showTableDetails by remember { mutableStateOf(false) }
 
     var isPressed by remember { mutableStateOf(false) }
     val buttonScale by animateFloatAsState(
@@ -101,7 +101,6 @@ fun FloatingPokerHud(
         label = "button_scale"
     )
 
-    // Compute visual out mappings with derivedStateOf to prevent unnecessary recomposition
     val visualOutItems by remember(state.outs) {
         derivedStateOf { LocalVisualMapper.parseOutsToVisuals(state.outs) }
     }
@@ -109,21 +108,21 @@ fun FloatingPokerHud(
     Column(
         modifier = modifier
             .padding(2.dp)
-            .widthIn(max = 340.dp),
+            .widthIn(max = 275.dp),
         horizontalAlignment = Alignment.Start
     ) {
-        // Row with Floating Trigger Button + Status indicator
+        // Fila del Botón Flotante Draggable + Píldora de Estado Rápido
         Row(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(6.dp),
-            modifier = Modifier.padding(bottom = 4.dp)
+            modifier = Modifier.padding(bottom = 3.dp)
         ) {
-            // Draggable & Clickable Floating Button (Trigger) - Ultra-compact 40dp
+            // Botón Circular de Disparo (Trigger) - 38dp
             Box(
                 contentAlignment = Alignment.Center,
                 modifier = Modifier
                     .scale(buttonScale)
-                    .size(40.dp)
+                    .size(38.dp)
                     .shadow(4.dp, CircleShape)
                     .clip(CircleShape)
                     .background(
@@ -164,7 +163,7 @@ fun FloatingPokerHud(
             ) {
                 if (state.isLoading) {
                     CircularProgressIndicator(
-                        modifier = Modifier.size(22.dp),
+                        modifier = Modifier.size(20.dp),
                         color = Color(0xFF00E676),
                         strokeWidth = 2.dp
                     )
@@ -176,60 +175,52 @@ fun FloatingPokerHud(
                         Text(
                             text = "♠",
                             color = Color(0xFF00E676),
-                            fontSize = 15.sp,
+                            fontSize = 14.sp,
                             fontWeight = FontWeight.Black,
-                            lineHeight = 15.sp
+                            lineHeight = 14.sp
                         )
                         Text(
                             text = "GTO",
                             color = Color.White,
-                            fontSize = 7.5.sp,
+                            fontSize = 7.sp,
                             fontWeight = FontWeight.Bold,
-                            letterSpacing = 0.3.sp
+                            letterSpacing = 0.2.sp
                         )
                     }
                 }
             }
 
-            // Quick State Pill (shows phase & win rate when collapsed)
+            // Píldora de Estado Rápido cuando la nube está colapsada
             if (!state.isExpanded && !state.isLoading) {
                 Surface(
-                    shape = RoundedCornerShape(14.dp),
+                    shape = RoundedCornerShape(12.dp),
                     color = Color(0xEE0A1810),
                     border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF00E676).copy(alpha = 0.5f)),
                     modifier = Modifier.clickable { onTriggerClick() }
                 ) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                        horizontalArrangement = Arrangement.spacedBy(5.dp),
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                     ) {
                         Text(
                             text = state.fase.uppercase(),
                             color = Color(0xFFFFD700),
-                            fontSize = 11.sp,
+                            fontSize = 10.sp,
                             fontWeight = FontWeight.Bold
                         )
-                        Text(
-                            text = "•",
-                            color = Color(0xFF6B7280),
-                            fontSize = 10.sp
-                        )
+                        Text(text = "•", color = Color(0xFF6B7280), fontSize = 9.sp)
                         Text(
                             text = state.winRate,
                             color = Color(0xFF00E676),
-                            fontSize = 12.sp,
+                            fontSize = 11.sp,
                             fontWeight = FontWeight.Black
                         )
-                        Text(
-                            text = "•",
-                            color = Color(0xFF6B7280),
-                            fontSize = 10.sp
-                        )
+                        Text(text = "•", color = Color(0xFF6B7280), fontSize = 9.sp)
                         Text(
                             text = state.gtoAction.title,
                             color = state.gtoAction.color,
-                            fontSize = 11.sp,
+                            fontSize = 10.sp,
                             fontWeight = FontWeight.Black
                         )
                     }
@@ -237,21 +228,21 @@ fun FloatingPokerHud(
             }
         }
 
-        // Expandable / Collapsible Result Panel ("La Nube")
+        // Panel de Resultados Desplegable ("La Nube Compact Pro")
         AnimatedVisibility(
             visible = state.isExpanded,
-            enter = fadeIn(tween(150)) + expandVertically(tween(150)),
-            exit = fadeOut(tween(120)) + shrinkVertically(tween(120))
+            enter = fadeIn(tween(140)) + expandVertically(tween(140)),
+            exit = fadeOut(tween(100)) + shrinkVertically(tween(100))
         ) {
             Surface(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .shadow(16.dp, RoundedCornerShape(16.dp))
+                    .shadow(12.dp, RoundedCornerShape(14.dp))
                     .testTag("floating_result_cloud"),
-                shape = RoundedCornerShape(16.dp),
-                color = Color(0xF80A140F),
+                shape = RoundedCornerShape(14.dp),
+                color = Color(0xF60A140F),
                 border = androidx.compose.foundation.BorderStroke(
-                    1.5.dp,
+                    1.2.dp,
                     Brush.verticalGradient(
                         colors = listOf(
                             Color(0xFF00E676),
@@ -261,132 +252,125 @@ fun FloatingPokerHud(
                 )
             ) {
                 Column(
-                    modifier = Modifier.padding(14.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+                    verticalArrangement = Arrangement.spacedBy(5.dp)
                 ) {
-                    // Header: Phase Badge, Pot / Bet Info & Latency / Close Button
+                    // Fila 1: Cabecera compacta (Fase, Bote, Unidad, Latencia, Botón Cerrar)
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        // Left: Phase Pill + Pot info
+                        // Izquierda: Fase + Bote
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
                             Surface(
-                                shape = RoundedCornerShape(6.dp),
+                                shape = RoundedCornerShape(4.dp),
                                 color = Color(0xFF163824),
-                                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF00E676))
+                                border = androidx.compose.foundation.BorderStroke(0.8.dp, Color(0xFF00E676))
                             ) {
                                 Text(
                                     text = state.fase.uppercase(),
                                     color = Color(0xFF00E676),
-                                    fontSize = 10.sp,
+                                    fontSize = 9.sp,
                                     fontWeight = FontWeight.ExtraBold,
-                                    modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp)
+                                    modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
                                 )
                             }
 
-                            // Pot & Rival Bet chips
+                            // Bote & Rival
                             Surface(
-                                shape = RoundedCornerShape(6.dp),
+                                shape = RoundedCornerShape(4.dp),
                                 color = Color(0xFF112217),
-                                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF224832))
+                                border = androidx.compose.foundation.BorderStroke(0.8.dp, Color(0xFF224832))
                             ) {
                                 Row(
-                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp),
+                                    modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp),
                                     verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                    horizontalArrangement = Arrangement.spacedBy(3.dp)
                                 ) {
                                     Text(
                                         text = "Bote:",
                                         color = Color(0xFF9CA3AF),
-                                        fontSize = 10.sp,
+                                        fontSize = 9.sp,
                                         fontWeight = FontWeight.Medium
                                     )
                                     Text(
                                         text = state.displayBote,
                                         color = Color(0xFFFFD700),
-                                        fontSize = 10.sp,
+                                        fontSize = 9.sp,
                                         fontWeight = FontWeight.Bold
                                     )
-                                    Text(
-                                        text = "| Rival:",
-                                        color = Color(0xFF9CA3AF),
-                                        fontSize = 10.sp,
-                                        fontWeight = FontWeight.Medium
-                                    )
-                                    Text(
-                                        text = state.displayApuestaRival,
-                                        color = Color.White,
-                                        fontSize = 10.sp,
-                                        fontWeight = FontWeight.Bold
-                                    )
+                                    if (state.displayApuestaRival != "0 BB" && state.displayApuestaRival != "0 $") {
+                                        Text(
+                                            text = "| Riv:",
+                                            color = Color(0xFF9CA3AF),
+                                            fontSize = 9.sp
+                                        )
+                                        Text(
+                                            text = state.displayApuestaRival,
+                                            color = Color.White,
+                                            fontSize = 9.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
                                 }
                             }
 
-                            // Quick Unit Selector Pill (BB ⇄ $)
+                            // Selector Rápido BB ⇄ $
                             Surface(
-                                shape = RoundedCornerShape(6.dp),
+                                shape = RoundedCornerShape(4.dp),
                                 color = if (state.bettingUnit == BettingUnit.BB) Color(0xFF0F3820) else Color(0xFF382A0F),
                                 border = androidx.compose.foundation.BorderStroke(
-                                    1.dp,
+                                    0.8.dp,
                                     if (state.bettingUnit == BettingUnit.BB) Color(0xFF00E676) else Color(0xFFFFD700)
                                 ),
                                 modifier = Modifier
                                     .testTag("hud_header_unit_toggle")
-                                    .clickable {
-                                        PokerGameStateManager.toggleBettingUnit()
-                                    }
+                                    .clickable { PokerGameStateManager.toggleBettingUnit() }
                             ) {
                                 Row(
-                                    modifier = Modifier.padding(horizontal = 5.dp, vertical = 3.dp),
+                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
                                     verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(2.dp)
+                                    horizontalArrangement = Arrangement.spacedBy(1.dp)
                                 ) {
                                     Text(
                                         text = if (state.bettingUnit == BettingUnit.BB) "BB" else "$",
                                         color = if (state.bettingUnit == BettingUnit.BB) Color(0xFF00E676) else Color(0xFFFFD700),
-                                        fontSize = 9.sp,
+                                        fontSize = 8.5.sp,
                                         fontWeight = FontWeight.Black
                                     )
                                     Icon(
                                         imageVector = Icons.Default.SwapHoriz,
-                                        contentDescription = "Cambiar unidad BB o Fichas",
+                                        contentDescription = "Cambiar unidad",
                                         tint = if (state.bettingUnit == BettingUnit.BB) Color(0xFF00E676) else Color(0xFFFFD700),
-                                        modifier = Modifier.size(11.dp)
+                                        modifier = Modifier.size(10.dp)
                                     )
                                 }
                             }
                         }
 
-                        // Right: Latency indicator + Close Button
+                        // Derecha: Latencia, API Key y Botón Cerrar
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            horizontalArrangement = Arrangement.spacedBy(3.dp)
                         ) {
                             if (!state.isLoading && state.latencyMs > 0) {
-                                Surface(
-                                    shape = RoundedCornerShape(6.dp),
-                                    color = Color(0xFF162D20)
-                                ) {
-                                    Text(
-                                        text = "⚡ ${state.latencyMs}ms",
-                                        color = if (state.latencyMs <= 1000) Color(0xFF00E676) else Color(0xFFFFD700),
-                                        fontSize = 10.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                                    )
-                                }
+                                Text(
+                                    text = "⚡${state.latencyMs}ms",
+                                    color = if (state.latencyMs <= 1000) Color(0xFF00E676) else Color(0xFFFFD700),
+                                    fontSize = 8.5.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
                             }
 
                             Surface(
-                                shape = RoundedCornerShape(6.dp),
+                                shape = RoundedCornerShape(4.dp),
                                 color = if (com.example.data.ApiKeyManager.hasApiKey(context)) Color(0xFF0F3820) else Color(0xFF382A0F),
                                 border = androidx.compose.foundation.BorderStroke(
-                                    1.dp,
+                                    0.8.dp,
                                     if (com.example.data.ApiKeyManager.hasApiKey(context)) Color(0xFF00E676) else Color(0xFFFFD700)
                                 ),
                                 modifier = Modifier
@@ -396,54 +380,43 @@ fun FloatingPokerHud(
                                         showApiKeyDialog = !showApiKeyDialog
                                     }
                             ) {
-                                Row(
-                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(3.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Key,
-                                        contentDescription = "Configurar API Key",
-                                        tint = if (com.example.data.ApiKeyManager.hasApiKey(context)) Color(0xFF00E676) else Color(0xFFFFD700),
-                                        modifier = Modifier.size(11.dp)
-                                    )
-                                    Text(
-                                        text = if (com.example.data.ApiKeyManager.hasApiKey(context)) "IA" else "API KEY",
-                                        color = if (com.example.data.ApiKeyManager.hasApiKey(context)) Color(0xFF00E676) else Color(0xFFFFD700),
-                                        fontSize = 9.sp,
-                                        fontWeight = FontWeight.Black
-                                    )
-                                }
+                                Icon(
+                                    imageVector = Icons.Default.Key,
+                                    contentDescription = "Configurar API Key",
+                                    tint = if (com.example.data.ApiKeyManager.hasApiKey(context)) Color(0xFF00E676) else Color(0xFFFFD700),
+                                    modifier = Modifier
+                                        .padding(3.dp)
+                                        .size(10.dp)
+                                )
                             }
 
                             IconButton(
                                 onClick = onCloseCloud,
                                 modifier = Modifier
-                                    .size(26.dp)
+                                    .size(20.dp)
                                     .testTag("floating_close_button")
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.Close,
                                     contentDescription = "Ocultar nube",
                                     tint = Color(0xFF9CA3AF),
-                                    modifier = Modifier.size(16.dp)
+                                    modifier = Modifier.size(14.dp)
                                 )
                             }
                         }
                     }
 
-                    // Status feedback banner (Warnings, Errors, or Model Info)
+                    // Fila 2: Mensaje de Estado / Feedback (Solo si es relevante)
                     if (state.statusMessage.isNotBlank() && state.statusMessage != "Listo para capturar") {
                         Surface(
-                            shape = RoundedCornerShape(6.dp),
+                            shape = RoundedCornerShape(4.dp),
                             color = if (state.statusMessage.startsWith("⚠️")) Color(0xFF2E1515) else Color(0xFF132A1C),
                             border = androidx.compose.foundation.BorderStroke(
-                                1.dp,
+                                0.8.dp,
                                 if (state.statusMessage.startsWith("⚠️")) Color(0xFF7F1D1D) else Color(0xFF1B4D2E)
                             ),
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(bottom = 6.dp)
                                 .clickable {
                                     if (state.statusMessage.contains("API Key", ignoreCase = true)) {
                                         enteredKey = com.example.data.ApiKeyManager.getApiKey(context) ?: ""
@@ -454,27 +427,25 @@ fun FloatingPokerHud(
                             Text(
                                 text = state.statusMessage,
                                 color = if (state.statusMessage.startsWith("⚠️")) Color(0xFFFCA5A5) else Color(0xFF86EFAC),
-                                fontSize = 9.sp,
+                                fontSize = 8.5.sp,
                                 fontWeight = FontWeight.Medium,
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
-                                maxLines = 2
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                maxLines = 1
                             )
                         }
                     }
 
-                    // API Key Settings Dialog
+                    // Diálogo desplegable de API Key (si se activa)
                     if (showApiKeyDialog) {
                         Surface(
-                            shape = RoundedCornerShape(10.dp),
+                            shape = RoundedCornerShape(8.dp),
                             color = Color(0xFF0F172A),
                             border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF00E676)),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(bottom = 6.dp)
+                            modifier = Modifier.fillMaxWidth()
                         ) {
                             Column(
-                                modifier = Modifier.padding(10.dp),
-                                verticalArrangement = Arrangement.spacedBy(6.dp)
+                                modifier = Modifier.padding(6.dp),
+                                verticalArrangement = Arrangement.spacedBy(4.dp)
                             ) {
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
@@ -482,98 +453,82 @@ fun FloatingPokerHud(
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Text(
-                                        text = "🔑 Gemini API Key",
+                                        text = "🔑 Clave Gemini Flash",
                                         color = Color.White,
-                                        fontSize = 11.sp,
+                                        fontSize = 10.sp,
                                         fontWeight = FontWeight.Bold
                                     )
                                     IconButton(
                                         onClick = { showApiKeyDialog = false },
-                                        modifier = Modifier.size(18.dp)
+                                        modifier = Modifier.size(16.dp)
                                     ) {
                                         Icon(
                                             imageVector = Icons.Default.Close,
                                             contentDescription = "Cerrar",
                                             tint = Color.Gray,
-                                            modifier = Modifier.size(13.dp)
+                                            modifier = Modifier.size(12.dp)
                                         )
                                     }
                                 }
-                                Text(
-                                    text = "Ingresa tu clave de aistudio.google.com para visión en la nube, o déjalo vacío para usar OCR local offline.",
-                                    color = Color(0xFF94A3B8),
-                                    fontSize = 9.sp
-                                )
                                 androidx.compose.material3.OutlinedTextField(
                                     value = enteredKey,
                                     onValueChange = { enteredKey = it },
-                                    placeholder = { Text("AIzaSy...", fontSize = 10.sp, color = Color.Gray) },
+                                    placeholder = { Text("AIzaSy...", fontSize = 9.sp, color = Color.Gray) },
                                     singleLine = true,
-                                    textStyle = androidx.compose.ui.text.TextStyle(fontSize = 10.sp, color = Color.White),
-                                    colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
-                                        focusedBorderColor = Color(0xFF00E676),
-                                        unfocusedBorderColor = Color(0xFF334155),
-                                        focusedContainerColor = Color(0xFF1E293B),
-                                        unfocusedContainerColor = Color(0xFF1E293B)
-                                    ),
                                     modifier = Modifier.fillMaxWidth()
                                 )
-                                val clipboardManager = LocalClipboardManager.current
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
+                                    horizontalArrangement = Arrangement.SpaceBetween
                                 ) {
                                     Surface(
-                                        shape = RoundedCornerShape(4.dp),
+                                        shape = RoundedCornerShape(3.dp),
                                         color = Color(0xFF1E293B),
-                                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF38BDF8)),
                                         modifier = Modifier.clickable {
                                             val clip = clipboardManager.getText()?.text
-                                            if (!clip.isNullOrBlank()) {
-                                                enteredKey = clip.trim()
-                                            }
+                                            if (!clip.isNullOrBlank()) enteredKey = clip.trim()
                                         }
                                     ) {
                                         Text(
                                             text = "Pegar",
                                             color = Color(0xFF38BDF8),
-                                            fontSize = 9.sp,
+                                            fontSize = 8.5.sp,
                                             fontWeight = FontWeight.Bold,
-                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                                         )
                                     }
-
-                                    androidx.compose.material3.Button(
-                                        onClick = {
+                                    Surface(
+                                        shape = RoundedCornerShape(3.dp),
+                                        color = Color(0xFF00E676),
+                                        modifier = Modifier.clickable {
                                             if (enteredKey.isNotBlank()) {
                                                 com.example.data.ApiKeyManager.saveApiKey(context, enteredKey)
-                                                PokerGameStateManager.updateStatus("✅ API Key guardada. Pulsa Re-analizar.")
+                                                PokerGameStateManager.updateStatus("✅ API Key guardada")
                                             } else {
                                                 com.example.data.ApiKeyManager.clearApiKey(context)
                                                 PokerGameStateManager.updateStatus("⚡ Modo OCR Local activo")
                                             }
                                             showApiKeyDialog = false
-                                        },
-                                        colors = androidx.compose.material3.ButtonDefaults.buttonColors(
-                                            containerColor = Color(0xFF00E676),
-                                            contentColor = Color.Black
-                                        ),
-                                        shape = RoundedCornerShape(4.dp),
-                                        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 10.dp, vertical = 2.dp)
+                                        }
                                     ) {
-                                        Text("Guardar", fontWeight = FontWeight.Bold, fontSize = 10.sp)
+                                        Text(
+                                            text = "Guardar",
+                                            color = Color.Black,
+                                            fontSize = 8.5.sp,
+                                            fontWeight = FontWeight.Black,
+                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                                        )
                                     }
                                 }
                             }
                         }
                     }
 
-                    // GTO State Bar: Active Players counter (+ / -), Dealer Button 'D' & Hero Position + Game Phase
+                    // Fila 3: Configuración de Mesa Compacta Plegable (👥 Jugadores • D BTN • Mi Pos ⚙)
                     Surface(
-                        shape = RoundedCornerShape(8.dp),
+                        shape = RoundedCornerShape(6.dp),
                         color = Color(0xFF141923),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF263044)),
+                        border = androidx.compose.foundation.BorderStroke(0.8.dp, Color(0xFF263044)),
                         modifier = Modifier
                             .fillMaxWidth()
                             .testTag("hud_gto_memory_bar")
@@ -581,84 +536,27 @@ fun FloatingPokerHud(
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(horizontal = 8.dp, vertical = 6.dp),
-                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                                .padding(horizontal = 6.dp, vertical = 3.dp),
+                            verticalArrangement = Arrangement.spacedBy(3.dp)
                         ) {
+                            // Cabecera compacta de la barra de mesa
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                // Active Players with auto-detection indicator
                                 Row(
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.spacedBy(4.dp)
                                 ) {
                                     Text(
-                                        text = "JUGADORES:",
-                                        color = Color(0xFF94A3B8),
-                                        fontSize = 9.sp,
-                                        fontWeight = FontWeight.Bold
+                                        text = "${state.jugadores} AUTO",
+                                        color = Color(0xFF00E676),
+                                        fontSize = 8.5.sp,
+                                        fontWeight = FontWeight.Black
                                     )
-
-                                    Surface(
-                                        shape = CircleShape,
-                                        color = Color(0xFF1E293B),
-                                        modifier = Modifier
-                                            .size(20.dp)
-                                            .testTag("hud_btn_dec_players")
-                                            .clickable { GTOStateManager.decrementPlayers() }
-                                    ) {
-                                        Box(contentAlignment = Alignment.Center) {
-                                            Icon(
-                                                imageVector = Icons.Default.Remove,
-                                                contentDescription = "Restar jugador",
-                                                tint = Color.White,
-                                                modifier = Modifier.size(11.dp)
-                                            )
-                                        }
-                                    }
-
-                                    Surface(
-                                        shape = RoundedCornerShape(4.dp),
-                                        color = Color(0xFF0F172A),
-                                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF00E676).copy(alpha = 0.4f)),
-                                        modifier = Modifier.padding(horizontal = 2.dp)
-                                    ) {
-                                        Text(
-                                            text = "${state.jugadores} AUTO",
-                                            color = Color(0xFF00E676),
-                                            fontSize = 9.sp,
-                                            fontWeight = FontWeight.Black,
-                                            modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
-                                        )
-                                    }
-
-                                    Surface(
-                                        shape = CircleShape,
-                                        color = Color(0xFF1E293B),
-                                        modifier = Modifier
-                                            .size(20.dp)
-                                            .testTag("hud_btn_inc_players")
-                                            .clickable { GTOStateManager.incrementPlayers() }
-                                    ) {
-                                        Box(contentAlignment = Alignment.Center) {
-                                            Icon(
-                                                imageVector = Icons.Default.Add,
-                                                contentDescription = "Sumar jugador",
-                                                tint = Color.White,
-                                                modifier = Modifier.size(11.dp)
-                                            )
-                                        }
-                                    }
-                                }
-
-                                // Dealer Button Badge & Game Phase Indicator
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
-                                ) {
-                                    // Dealer Badge (Clickable to rotate)
+                                    Text(text = "•", color = Color(0xFF475569), fontSize = 8.sp)
+                                    // Dealer Badge
                                     Surface(
                                         shape = CircleShape,
                                         color = Color(0xFFFFD700),
@@ -669,67 +567,104 @@ fun FloatingPokerHud(
                                         Text(
                                             text = "D",
                                             color = Color.Black,
-                                            fontSize = 9.sp,
+                                            fontSize = 7.5.sp,
                                             fontWeight = FontWeight.Black,
-                                            modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp)
+                                            modifier = Modifier.padding(horizontal = 3.dp, vertical = 0.5.dp)
                                         )
                                     }
-
                                     Text(
                                         text = state.dealerPosition,
                                         color = Color(0xFFFFD700),
-                                        fontSize = 9.sp,
+                                        fontSize = 8.5.sp,
                                         fontWeight = FontWeight.Bold,
                                         modifier = Modifier.clickable { GTOStateManager.rotateDealer() }
                                     )
+                                    Text(text = "•", color = Color(0xFF475569), fontSize = 8.sp)
+                                    Text(
+                                        text = "Pos: ${state.posicion}",
+                                        color = Color(0xFF38BDF8),
+                                        fontSize = 8.5.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
 
-                                    // Phase Badge (Preflop, Flop, Turn, River - Clickable to advance)
-                                    Surface(
-                                        shape = RoundedCornerShape(4.dp),
-                                        color = Color(0xFF1E3A8A),
-                                        modifier = Modifier.clickable { GTOStateManager.nextPhase() }
-                                    ) {
-                                        Text(
-                                            text = state.fase.uppercase(),
-                                            color = Color(0xFF93C5FD),
-                                            fontSize = 8.sp,
-                                            fontWeight = FontWeight.Black,
-                                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+                                // Botón desplegar/colapsar ajustes manuales ⚙
+                                Surface(
+                                    shape = RoundedCornerShape(3.dp),
+                                    color = if (showTableDetails) Color(0xFF00E676) else Color(0xFF1E293B),
+                                    modifier = Modifier
+                                        .size(17.dp)
+                                        .clickable { showTableDetails = !showTableDetails }
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Icon(
+                                            imageVector = if (showTableDetails) Icons.Default.ExpandLess else Icons.Default.Settings,
+                                            contentDescription = "Ajustar mesa",
+                                            tint = if (showTableDetails) Color.Black else Color(0xFF94A3B8),
+                                            modifier = Modifier.size(11.dp)
                                         )
                                     }
                                 }
                             }
 
-                            // Hero Position chips (UTG, MP, CO, BTN, SB, BB)
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Text(
-                                    text = "MI POS:",
-                                    color = Color(0xFF94A3B8),
-                                    fontSize = 9.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
-
-                                Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
-                                    listOf("UTG", "MP", "CO", "BTN", "SB", "BB").forEach { pos ->
-                                        val isSelected = state.posicion.equals(pos, ignoreCase = true)
+                            // Sección expandible con controles manuales completos (si el usuario la activa)
+                            if (showTableDetails) {
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(text = "JUG:", color = Color(0xFF94A3B8), fontSize = 8.5.sp)
+                                    Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
                                         Surface(
-                                            shape = RoundedCornerShape(4.dp),
-                                            color = if (isSelected) Color(0xFF00E676) else Color(0xFF1E293B),
+                                            shape = CircleShape,
+                                            color = Color(0xFF1E293B),
                                             modifier = Modifier
-                                                .testTag("hud_pos_$pos")
-                                                .clickable { GTOStateManager.setPosition(pos) }
+                                                .size(16.dp)
+                                                .clickable { GTOStateManager.decrementPlayers() }
                                         ) {
-                                            Text(
-                                                text = pos,
-                                                color = if (isSelected) Color.Black else Color(0xFFCBD5E1),
-                                                fontSize = 9.sp,
-                                                fontWeight = if (isSelected) FontWeight.Black else FontWeight.Medium,
-                                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
-                                            )
+                                            Box(contentAlignment = Alignment.Center) {
+                                                Icon(Icons.Default.Remove, null, tint = Color.White, modifier = Modifier.size(9.dp))
+                                            }
+                                        }
+                                        Text(
+                                            text = "${state.jugadores}",
+                                            color = Color.White,
+                                            fontSize = 9.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            modifier = Modifier.padding(horizontal = 4.dp)
+                                        )
+                                        Surface(
+                                            shape = CircleShape,
+                                            color = Color(0xFF1E293B),
+                                            modifier = Modifier
+                                                .size(16.dp)
+                                                .clickable { GTOStateManager.incrementPlayers() }
+                                        ) {
+                                            Box(contentAlignment = Alignment.Center) {
+                                                Icon(Icons.Default.Add, null, tint = Color.White, modifier = Modifier.size(9.dp))
+                                            }
+                                        }
+                                    }
+
+                                    // Selector de posición manual
+                                    Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                                        listOf("UTG", "MP", "CO", "BTN", "SB", "BB").forEach { pos ->
+                                            val isSelected = state.posicion.equals(pos, ignoreCase = true)
+                                            Surface(
+                                                shape = RoundedCornerShape(2.dp),
+                                                color = if (isSelected) Color(0xFF00E676) else Color(0xFF1E293B),
+                                                modifier = Modifier.clickable { GTOStateManager.setPosition(pos) }
+                                            ) {
+                                                Text(
+                                                    text = pos,
+                                                    color = if (isSelected) Color.Black else Color(0xFFCBD5E1),
+                                                    fontSize = 8.sp,
+                                                    fontWeight = if (isSelected) FontWeight.Black else FontWeight.Normal,
+                                                    modifier = Modifier.padding(horizontal = 3.dp, vertical = 1.dp)
+                                                )
+                                            }
                                         }
                                     }
                                 }
@@ -737,62 +672,56 @@ fun FloatingPokerHud(
                         }
                     }
 
-                    // Content: Loading state vs Structured Poker Analysis Result
+                    // Fila 4: Contenido de Análisis / Cartas & Métricas
                     if (state.isLoading) {
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(vertical = 16.dp),
+                                .padding(vertical = 10.dp),
                             horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
                             CircularProgressIndicator(
-                                modifier = Modifier.size(34.dp),
+                                modifier = Modifier.size(22.dp),
                                 color = Color(0xFF00E676),
-                                strokeWidth = 3.dp
+                                strokeWidth = 2.dp
                             )
                             Text(
-                                text = "Calculando...",
+                                text = "Analizando con Gemini Serie 3...",
                                 color = Color.White,
-                                fontSize = 14.sp,
+                                fontSize = 11.sp,
                                 fontWeight = FontWeight.Bold
-                            )
-                            Text(
-                                text = "Visión Multirresolución • Gemini Serie 3 Flash",
-                                color = Color(0xFF9CA3AF),
-                                fontSize = 10.sp,
-                                textAlign = TextAlign.Center
                             )
                         }
                     } else {
-                        // 1. CARDS ROW: Cartas Propias & Mesa
+                        // Cartas Propias, Mesa y Win Equity en 1 Fila Integrada
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             // Mis Cartas
-                            Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                            Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
                                 Text(
                                     text = "MIS CARTAS",
                                     color = Color(0xFF9CA3AF),
-                                    fontSize = 10.sp,
+                                    fontSize = 8.5.sp,
                                     fontWeight = FontWeight.SemiBold
                                 )
-                                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
                                     if (state.cartasPropias.isNotEmpty()) {
                                         state.cartasPropias.forEach { card ->
                                             PokerCardBadge(card = card)
                                         }
                                     } else {
-                                        val cards = PokerCard.parseMultiple(state.cartasPropiasDisplay)
-                                        if (cards.isNotEmpty()) {
-                                            cards.forEach { PokerCardBadge(card = it) }
+                                        val parsed = PokerCard.parseMultiple(state.cartasPropiasDisplay)
+                                        if (parsed.isNotEmpty()) {
+                                            parsed.forEach { PokerCardBadge(card = it) }
                                         } else {
                                             Text(
                                                 text = state.cartasPropiasDisplay,
                                                 color = Color.White,
-                                                fontSize = 13.sp,
+                                                fontSize = 11.sp,
                                                 fontWeight = FontWeight.Bold
                                             )
                                         }
@@ -800,127 +729,95 @@ fun FloatingPokerHud(
                                 }
                             }
 
-                            // Mesa
+                            // Mesa Comunitaria
                             Column(
-                                horizontalAlignment = Alignment.End,
-                                verticalArrangement = Arrangement.spacedBy(3.dp)
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(1.dp)
                             ) {
                                 Text(
                                     text = "MESA",
                                     color = Color(0xFF9CA3AF),
-                                    fontSize = 10.sp,
+                                    fontSize = 8.5.sp,
                                     fontWeight = FontWeight.SemiBold
                                 )
-                                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
                                     if (state.cartasComunitarias.isNotEmpty()) {
                                         state.cartasComunitarias.forEach { card ->
                                             PokerCardBadge(card = card)
                                         }
                                     } else if (state.cartasComunitariasDisplay != "-" && !state.cartasComunitariasDisplay.contains("Preflop")) {
-                                        val cards = PokerCard.parseMultiple(state.cartasComunitariasDisplay)
-                                        if (cards.isNotEmpty()) {
-                                            cards.forEach { PokerCardBadge(card = it) }
+                                        val parsed = PokerCard.parseMultiple(state.cartasComunitariasDisplay)
+                                        if (parsed.isNotEmpty()) {
+                                            parsed.forEach { PokerCardBadge(card = it) }
                                         } else {
                                             Text(
                                                 text = state.cartasComunitariasDisplay,
                                                 color = Color(0xFFD1D5DB),
-                                                fontSize = 12.sp,
-                                                fontWeight = FontWeight.Medium
+                                                fontSize = 10.sp
                                             )
                                         }
                                     } else {
                                         Text(
                                             text = "— (Preflop)",
                                             color = Color(0xFF6B7280),
-                                            fontSize = 11.sp,
+                                            fontSize = 9.sp,
                                             fontWeight = FontWeight.Medium
                                         )
                                     }
                                 }
                             }
-                        }
 
-                        // 2. METRICS ROW: Outs & Win Equity
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            // Outs Card with Local Visual Badges
-                            Surface(
-                                modifier = Modifier.weight(1.1f),
-                                shape = RoundedCornerShape(8.dp),
-                                color = Color(0xFF112319),
-                                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF1C3C2A))
+                            // Win Equity & Outs
+                            Column(
+                                horizontalAlignment = Alignment.End,
+                                verticalArrangement = Arrangement.spacedBy(1.dp)
                             ) {
-                                Column(
-                                    modifier = Modifier.padding(8.dp),
-                                    verticalArrangement = Arrangement.spacedBy(4.dp)
-                                ) {
+                                Text(
+                                    text = "EQUITY",
+                                    color = Color(0xFF00E676),
+                                    fontSize = 8.5.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                    text = state.winRate,
+                                    color = Color(0xFF00E676),
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Black
+                                )
+                                if (state.outs != "-" && state.outs.isNotBlank()) {
                                     Text(
-                                        text = "OUTS & PROYECTOS",
-                                        color = Color(0xFF9CA3AF),
-                                        fontSize = 9.sp,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                    Text(
-                                        text = state.outs,
+                                        text = "Outs: ${state.outs.take(10)}",
                                         color = Color(0xFF60A5FA),
-                                        fontSize = 13.sp,
-                                        fontWeight = FontWeight.Black
-                                    )
-
-                                    // Local Visual Badges mapped instantly from AI text tokens
-                                    if (visualOutItems.isNotEmpty()) {
-                                        Row(
-                                            horizontalArrangement = Arrangement.spacedBy(4.dp),
-                                            modifier = Modifier.padding(top = 2.dp)
-                                        ) {
-                                            visualOutItems.forEach { item ->
-                                                VisualOutBadge(item = item)
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-
-                            // Win % Card (Vibrant Green)
-                            Surface(
-                                modifier = Modifier.weight(0.9f),
-                                shape = RoundedCornerShape(8.dp),
-                                color = Color(0xFF0A291A),
-                                border = androidx.compose.foundation.BorderStroke(1.5.dp, Color(0xFF00E676))
-                            ) {
-                                Column(
-                                    modifier = Modifier.padding(8.dp),
-                                    verticalArrangement = Arrangement.spacedBy(2.dp)
-                                ) {
-                                    Text(
-                                        text = "WIN EQUITY",
-                                        color = Color(0xFF00E676),
-                                        fontSize = 9.sp,
+                                        fontSize = 8.sp,
                                         fontWeight = FontWeight.Bold
-                                    )
-                                    Text(
-                                        text = state.winRate,
-                                        color = Color(0xFF00E676),
-                                        fontSize = 18.sp,
-                                        fontWeight = FontWeight.Black
                                     )
                                 }
                             }
                         }
 
-                        // 3. GTO OPTIMAL DECISION BANNER
+                        // Badges Visuales Locales de Proyectos (si existen)
+                        if (visualOutItems.isNotEmpty()) {
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(3.dp),
+                                modifier = Modifier.padding(top = 1.dp)
+                            ) {
+                                visualOutItems.forEach { item ->
+                                    VisualOutBadge(item = item)
+                                }
+                            }
+                        }
+
+                        // Fila 5: Banner de Decisión GTO Óptima (Sleek & Compact)
                         Surface(
                             modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(10.dp),
+                            shape = RoundedCornerShape(8.dp),
                             color = state.gtoAction.bgTint,
-                            border = androidx.compose.foundation.BorderStroke(1.5.dp, state.gtoAction.color)
+                            border = androidx.compose.foundation.BorderStroke(1.2.dp, state.gtoAction.color)
                         ) {
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(horizontal = 12.dp, vertical = 9.dp),
+                                    .padding(horizontal = 8.dp, vertical = 5.dp),
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
@@ -928,14 +825,14 @@ fun FloatingPokerHud(
                                     Text(
                                         text = "DECISIÓN GTO ÓPTIMA",
                                         color = state.gtoAction.color.copy(alpha = 0.8f),
-                                        fontSize = 9.sp,
+                                        fontSize = 7.5.sp,
                                         fontWeight = FontWeight.Bold,
-                                        letterSpacing = 0.5.sp
+                                        letterSpacing = 0.3.sp
                                     )
                                     Text(
                                         text = state.fullGtoDecision.ifBlank { state.gtoAction.title },
                                         color = state.gtoAction.color,
-                                        fontSize = 18.sp,
+                                        fontSize = 13.sp,
                                         fontWeight = FontWeight.Black
                                     )
                                 }
@@ -943,107 +840,96 @@ fun FloatingPokerHud(
                                 Surface(
                                     shape = CircleShape,
                                     color = state.gtoAction.color,
-                                    modifier = Modifier.size(28.dp)
+                                    modifier = Modifier.size(20.dp)
                                 ) {
                                     Box(contentAlignment = Alignment.Center) {
                                         Icon(
                                             imageVector = Icons.Default.Speed,
                                             contentDescription = null,
                                             tint = Color.Black,
-                                            modifier = Modifier.size(16.dp)
+                                            modifier = Modifier.size(12.dp)
                                         )
                                     }
                                 }
                             }
                         }
 
-                        // 4. Bottom Controls: Manual Unit Selection (BB vs Fichas/$) + Quick Re-evaluate
+                        // Fila 6: Controles Inferiores (Selector de Unidad BB/$ y Botón Re-analizar)
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            // Selector manual para que el usuario elija exactamente BB o Fichas y no haya errores
+                            // Selector manual BB o Fichas
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                horizontalArrangement = Arrangement.spacedBy(3.dp)
                             ) {
-                                Text(
-                                    text = "Unidad:",
-                                    color = Color(0xFF9CA3AF),
-                                    fontSize = 10.sp,
-                                    fontWeight = FontWeight.Medium
-                                )
-                                // Opción BB
                                 Surface(
-                                    shape = RoundedCornerShape(4.dp),
+                                    shape = RoundedCornerShape(3.dp),
                                     color = if (state.bettingUnit == BettingUnit.BB) Color(0xFF00E676) else Color(0xFF1B2E23),
                                     border = androidx.compose.foundation.BorderStroke(
-                                        1.dp,
+                                        0.8.dp,
                                         if (state.bettingUnit == BettingUnit.BB) Color(0xFF00E676) else Color(0xFF335C45)
                                     ),
                                     modifier = Modifier
                                         .testTag("floating_select_bb_btn")
-                                        .clickable {
-                                            PokerGameStateManager.setBettingUnit(BettingUnit.BB)
-                                        }
+                                        .clickable { PokerGameStateManager.setBettingUnit(BettingUnit.BB) }
                                 ) {
                                     Text(
                                         text = "BB",
                                         color = if (state.bettingUnit == BettingUnit.BB) Color.Black else Color.White,
-                                        fontSize = 10.sp,
+                                        fontSize = 8.5.sp,
                                         fontWeight = FontWeight.Bold,
-                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp)
+                                        modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
                                     )
                                 }
-                                // Opción Fichas / $
+
                                 Surface(
-                                    shape = RoundedCornerShape(4.dp),
+                                    shape = RoundedCornerShape(3.dp),
                                     color = if (state.bettingUnit == BettingUnit.CHIPS) Color(0xFFFFD700) else Color(0xFF2C2411),
                                     border = androidx.compose.foundation.BorderStroke(
-                                        1.dp,
+                                        0.8.dp,
                                         if (state.bettingUnit == BettingUnit.CHIPS) Color(0xFFFFD700) else Color(0xFF59481E)
                                     ),
                                     modifier = Modifier
                                         .testTag("floating_select_chips_btn")
-                                        .clickable {
-                                            PokerGameStateManager.setBettingUnit(BettingUnit.CHIPS)
-                                        }
+                                        .clickable { PokerGameStateManager.setBettingUnit(BettingUnit.CHIPS) }
                                 ) {
                                     Text(
                                         text = "Fichas ($)",
                                         color = if (state.bettingUnit == BettingUnit.CHIPS) Color.Black else Color.White,
-                                        fontSize = 10.sp,
+                                        fontSize = 8.5.sp,
                                         fontWeight = FontWeight.Bold,
-                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp)
+                                        modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
                                     )
                                 }
                             }
 
-                            // Botón de re-analizar
+                            // Botón de re-analizar rápido
                             Surface(
-                                shape = RoundedCornerShape(6.dp),
+                                shape = RoundedCornerShape(4.dp),
                                 color = Color(0xFF142B1E),
-                                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF224832)),
+                                border = androidx.compose.foundation.BorderStroke(0.8.dp, Color(0xFF224832)),
                                 modifier = Modifier
                                     .testTag("floating_reanalyze_btn")
                                     .clickable { onTriggerClick() }
                             ) {
                                 Row(
-                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp),
+                                    modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp),
                                     verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                    horizontalArrangement = Arrangement.spacedBy(3.dp)
                                 ) {
                                     Icon(
                                         imageVector = Icons.Default.Refresh,
                                         contentDescription = "Re-evaluar",
                                         tint = Color(0xFF00E676),
-                                        modifier = Modifier.size(12.dp)
+                                        modifier = Modifier.size(11.dp)
                                     )
                                     Text(
                                         text = "Re-analizar",
                                         color = Color(0xFF00E676),
-                                        fontSize = 10.sp,
+                                        fontSize = 9.sp,
                                         fontWeight = FontWeight.Bold
                                     )
                                 }
@@ -1067,25 +953,25 @@ fun VisualOutBadge(
 ) {
     Surface(
         modifier = modifier,
-        shape = RoundedCornerShape(4.dp),
+        shape = RoundedCornerShape(3.dp),
         color = item.iconColor.copy(alpha = 0.2f),
-        border = androidx.compose.foundation.BorderStroke(1.dp, item.iconColor.copy(alpha = 0.6f))
+        border = androidx.compose.foundation.BorderStroke(0.8.dp, item.iconColor.copy(alpha = 0.6f))
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp),
+            modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(3.dp)
+            horizontalArrangement = Arrangement.spacedBy(2.dp)
         ) {
             Text(
                 text = item.iconSymbol,
                 color = item.iconColor,
-                fontSize = 11.sp,
+                fontSize = 9.sp,
                 fontWeight = FontWeight.ExtraBold
             )
             Text(
                 text = item.label,
                 color = Color.White,
-                fontSize = 9.sp,
+                fontSize = 8.sp,
                 fontWeight = FontWeight.Bold
             )
         }

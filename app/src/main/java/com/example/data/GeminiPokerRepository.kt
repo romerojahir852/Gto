@@ -38,10 +38,13 @@ class GeminiPokerRepository {
     companion object {
         private const val TAG = "GeminiPokerRepo"
         // 10000ms: tiempo óptimo para respuesta instantánea fluida sin demoras
-        private const val TIMEOUT_MS = 10000L
+        private const val TIMEOUT_MS = 12000L
         private const val MAX_IMAGE_DIMENSION = 960
         private const val JPEG_COMPRESSION_QUALITY = 82
         private const val ENDPOINT_BASE = "https://generativelanguage.googleapis.com/v1beta/models"
+
+        @Volatile
+        private var lastSuccessfulModel: String? = null
     }
 
     /**
@@ -162,7 +165,7 @@ class GeminiPokerRepository {
             try {
                 val prompt = buildSurgicalPrompt(currentState)
                 val callResult = withTimeout(TIMEOUT_MS) {
-                    callGeminiFast(apiKey, prompt, compressedBitmap)
+                    callGeminiFast(apiKey, prompt, bitmap)
                 }
 
                 val latency = System.currentTimeMillis() - startTime
@@ -216,7 +219,7 @@ class GeminiPokerRepository {
 
         // MOTOR ON-DEVICE: Detección visual OCR local directa sobre el frame
         Log.d("OCR_LOCAL", "Ejecutando escaneo visual OCR local en dispositivo")
-        val localState = com.example.service.LocalCardOcrDetector.detect(compressedBitmap, currentState)
+        val localState = com.example.service.LocalCardOcrDetector.detect(bitmap, currentState)
         val finalStatus = if (apiKey.isNullOrBlank()) {
             localState.statusMessage + " • 🔑 Toca para ingresar API Key"
         } else if (!geminiFailureReason.isNullOrBlank()) {
@@ -293,132 +296,126 @@ class GeminiPokerRepository {
 
         var lastError: String? = null
 
-        for (modelName in candidateModels) {
-            val shouldTryThinking = modelName.contains("3.")
-            val attemptConfigs = if (shouldTryThinking) listOf(true, false) else listOf(false)
+        // Cascada inteligente: si ya tenemos un modelo confirmado para esta API Key, se llama de inmediato
+        val orderedModels = mutableListOf<String>()
+        val cached = lastSuccessfulModel
+        if (!cached.isNullOrBlank() && cached in candidateModels) {
+            orderedModels.add(cached)
+            orderedModels.addAll(candidateModels.filter { it != cached })
+        } else {
+            orderedModels.addAll(candidateModels)
+        }
 
-            for (withThinking in attemptConfigs) {
-                try {
-                    val requestBody = buildJsonObject {
-                        put("contents", buildJsonArray {
-                            add(buildJsonObject {
-                                put("parts", buildJsonArray {
-                                    add(buildJsonObject {
-                                        put("text", prompt)
-                                    })
-                                    for (base64 in base64Images) {
-                                        add(buildJsonObject {
-                                            put("inlineData", buildJsonObject {
-                                                put("mimeType", "image/jpeg")
-                                                put("data", base64)
-                                            })
-                                        })
-                                    }
+        for (modelName in orderedModels) {
+            try {
+                val requestBody = buildJsonObject {
+                    put("contents", buildJsonArray {
+                        add(buildJsonObject {
+                            put("parts", buildJsonArray {
+                                add(buildJsonObject {
+                                    put("text", prompt)
                                 })
+                                for (base64 in base64Images) {
+                                    add(buildJsonObject {
+                                        put("inlineData", buildJsonObject {
+                                            put("mimeType", "image/jpeg")
+                                            put("data", base64)
+                                        })
+                                    })
+                                }
                             })
                         })
-                        put("generationConfig", buildJsonObject {
-                            put("responseMimeType", "application/json")
-                            put("maxOutputTokens", 1024)
-                            put("temperature", 0.0)
-                            if (withThinking) {
-                                put("thinkingConfig", buildJsonObject {
-                                    put("thinkingLevel", "LOW")
-                                })
-                            }
-                        })
-                    }
-
-                    val response = ktorClient.post(
-                        "$ENDPOINT_BASE/$modelName:generateContent?key=$apiKey"
-                    ) {
-                        headers {
-                            append("x-goog-api-key", apiKey)
-                        }
-                        contentType(ContentType.Application.Json)
-                        setBody(requestBody.toString())
-                    }
-
-                    val statusCode = response.status.value
-                    val body = response.bodyAsText()
-
-                    if (statusCode !in 200..299) {
-                        lastError = "HTTP $statusCode: ${body.take(180)}"
-                        Log.w(TAG, "$modelName (thinking=$withThinking) failed with HTTP $statusCode: ${body.take(200)}")
-                        if (statusCode == 400 && withThinking) {
-                            // Reintentar inmediatamente sin thinkingLevel en este mismo modelo
-                            continue
-                        }
-                        break
-                    }
-
-                    val parsed = try {
-                        json.parseToJsonElement(body)
-                    } catch (e: Exception) {
-                        lastError = "JSON parse error: ${e.message?.take(60)}"
-                        Log.w(TAG, "$modelName returned invalid JSON: ${body.take(200)}")
-                        break
-                    }
-
-                    val jsonObj = parsed as? JsonObject
-                    if (jsonObj == null) {
-                        lastError = "Response not a JSON object"
-                        break
-                    }
-
-                    // Detectar error de API dentro del body (Google a veces devuelve 200 con error JSON)
-                    jsonObj["error"]?.let { err ->
-                        val errMsg = (err as? JsonObject)?.get("message")?.jsonPrimitive?.contentOrNull
-                        lastError = errMsg ?: "Unknown API error"
-                        Log.w(TAG, "$modelName returned error in body: $lastError")
-                        return@let
-                    }
-
-                    val candidateObj = jsonObj["candidates"]
-                        ?.jsonArray
-                        ?.firstOrNull()
-                        ?.jsonObject
-                    val parts = candidateObj
-                        ?.get("content")
-                        ?.jsonObject
-                        ?.get("parts")
-                        ?.jsonArray
-
-                    // Filtrar partes con "thought": true y extraer el texto JSON real
-                    val realParts = parts?.mapNotNull { part ->
-                        val pObj = part.jsonObject
-                        val isThought = pObj["thought"]?.jsonPrimitive?.contentOrNull == "true"
-                        val pText = pObj["text"]?.jsonPrimitive?.contentOrNull
-                        if (!isThought && !pText.isNullOrBlank()) pText else null
-                    }
-
-                    val text = realParts?.joinToString("\n")?.takeIf { it.isNotBlank() }
-                        ?: parts?.mapNotNull { it.jsonObject["text"]?.jsonPrimitive?.contentOrNull }?.lastOrNull { it.contains("{") }
-                        ?: parts?.mapNotNull { it.jsonObject["text"]?.jsonPrimitive?.contentOrNull }?.lastOrNull()
-
-                    if (!text.isNullOrBlank()) {
-                        Log.d(TAG, "$modelName responded OK (${text.length} chars)")
-                        visionParts.forEach { if (it != bitmap && !it.isRecycled) it.recycle() }
-                        return GeminiCallResult(text = text, modelUsed = modelName)
-                    } else {
-                        lastError = "Empty text in response"
-                        Log.w(TAG, "$modelName returned empty text. Body: ${body.take(200)}")
-                    }
-                } catch (e: ResponseException) {
-                    val code = e.response.status.value
-                    lastError = "HTTP $code: ${e.message?.take(80)}"
-                    Log.w(TAG, "$modelName ResponseException: $lastError", e)
-                    break
-                } catch (e: HttpRequestTimeoutException) {
-                    lastError = "Timeout HTTP"
-                    Log.w(TAG, "$modelName timeout", e)
-                    break
-                } catch (t: Throwable) {
-                    val msg = t.message ?: t.javaClass.simpleName
-                    lastError = msg
-                    Log.e(TAG, "$modelName unexpected error: $msg", t)
-                    break
+                    })
+                    put("generationConfig", buildJsonObject {
+                        put("responseMimeType", "application/json")
+                        put("maxOutputTokens", 260)
+                        put("temperature", 0.0)
+                    })
                 }
+
+                val response = ktorClient.post(
+                    "$ENDPOINT_BASE/$modelName:generateContent?key=$apiKey"
+                ) {
+                    headers {
+                        append("x-goog-api-key", apiKey)
+                    }
+                    contentType(ContentType.Application.Json)
+                    setBody(requestBody.toString())
+                }
+
+                val statusCode = response.status.value
+                val body = response.bodyAsText()
+
+                if (statusCode !in 200..299) {
+                    lastError = "HTTP $statusCode: ${body.take(180)}"
+                    Log.w(TAG, "$modelName failed with HTTP $statusCode: ${body.take(200)}")
+                    continue
+                }
+
+                val parsed = try {
+                    json.parseToJsonElement(body)
+                } catch (e: Exception) {
+                    lastError = "JSON parse error: ${e.message?.take(60)}"
+                    Log.w(TAG, "$modelName returned invalid JSON: ${body.take(200)}")
+                    continue
+                }
+
+                val jsonObj = parsed as? JsonObject
+                if (jsonObj == null) {
+                    lastError = "Response not a JSON object"
+                    continue
+                }
+
+                // Detectar error de API dentro del body (Google a veces devuelve 200 con error JSON)
+                jsonObj["error"]?.let { err ->
+                    val errMsg = (err as? JsonObject)?.get("message")?.jsonPrimitive?.contentOrNull
+                    lastError = errMsg ?: "Unknown API error"
+                    Log.w(TAG, "$modelName returned error in body: $lastError")
+                    return@let
+                }
+
+                val candidateObj = jsonObj["candidates"]
+                    ?.jsonArray
+                    ?.firstOrNull()
+                    ?.jsonObject
+                val parts = candidateObj
+                    ?.get("content")
+                    ?.jsonObject
+                    ?.get("parts")
+                    ?.jsonArray
+
+                // Filtrar partes con "thought": true y extraer el texto JSON real
+                val realParts = parts?.mapNotNull { part ->
+                    val pObj = part.jsonObject
+                    val isThought = pObj["thought"]?.jsonPrimitive?.contentOrNull == "true"
+                    val pText = pObj["text"]?.jsonPrimitive?.contentOrNull
+                    if (!isThought && !pText.isNullOrBlank()) pText else null
+                }
+
+                val text = realParts?.joinToString("\n")?.takeIf { it.isNotBlank() }
+                    ?: parts?.mapNotNull { it.jsonObject["text"]?.jsonPrimitive?.contentOrNull }?.lastOrNull { it.contains("{") }
+                    ?: parts?.mapNotNull { it.jsonObject["text"]?.jsonPrimitive?.contentOrNull }?.lastOrNull()
+
+                if (!text.isNullOrBlank()) {
+                    Log.d(TAG, "$modelName responded OK (${text.length} chars)")
+                    lastSuccessfulModel = modelName
+                    visionParts.forEach { if (it != bitmap && !it.isRecycled) it.recycle() }
+                    return GeminiCallResult(text = text, modelUsed = modelName)
+                } else {
+                    lastError = "Empty text in response"
+                    Log.w(TAG, "$modelName returned empty text. Body: ${body.take(200)}")
+                }
+            } catch (e: ResponseException) {
+                val code = e.response.status.value
+                lastError = "HTTP $code: ${e.message?.take(80)}"
+                Log.w(TAG, "$modelName ResponseException: $lastError", e)
+            } catch (e: HttpRequestTimeoutException) {
+                lastError = "Timeout HTTP"
+                Log.w(TAG, "$modelName timeout", e)
+            } catch (t: Throwable) {
+                val msg = t.message ?: t.javaClass.simpleName
+                lastError = msg
+                Log.e(TAG, "$modelName unexpected error: $msg", t)
             }
         }
 
@@ -427,6 +424,7 @@ class GeminiPokerRepository {
     }
 
     /**
+
      * Motor de Visión y Decisión Texas Hold'em Local.
      * Mantiene el estado real de la partida sin inyectar manos simuladas.
      */

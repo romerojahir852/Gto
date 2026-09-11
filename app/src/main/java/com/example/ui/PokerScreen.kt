@@ -1,5 +1,7 @@
 package com.example.ui
 
+import com.example.ui.GtoStudyViewerScreen
+
 import com.example.ui.theme.BgWhite
 import com.example.ui.theme.BgSoft
 import com.example.ui.theme.Ink
@@ -44,6 +46,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Collections
 import androidx.compose.material.icons.filled.Casino
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
@@ -128,6 +131,7 @@ fun PokerScreen(
     val currentPreviewBitmap by viewModel.currentPreviewBitmap.collectAsState()
     val handState by PokerGameStateManager.handState.collectAsState()
     var showApiKeyModal by remember { mutableStateOf(false) }
+    var selectedScreenTab by remember { mutableStateOf(0) } // 0 = HUD En Vivo, 1 = Modo Estudio
 
     var overlayCheckCounter by remember { mutableStateOf(0) }
     val canDrawOverlays = remember(overlayCheckCounter, isServiceRunning) {
@@ -287,13 +291,89 @@ fun PokerScreen(
     ) { innerPadding ->
         Box(modifier = Modifier.fillMaxSize()) {
             BackgroundGeometry(modifier = Modifier.fillMaxSize())
-            LazyColumn(
+            Column(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(innerPadding)
-                    .padding(horizontal = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
+                // Selector de Modo: HUD En Vivo vs Visor de Estudio GTO
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 6.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Surface(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(10.dp))
+                            .clickable { selectedScreenTab = 0 },
+                        color = if (selectedScreenTab == 0) AppTheme.colors.accentSelected else AppTheme.colors.surfaceVariant,
+                        border = androidx.compose.foundation.BorderStroke(1.dp, if (selectedScreenTab == 0) AppTheme.colors.accentGreen else AppTheme.colors.borderSubtle)
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(vertical = 8.dp),
+                            horizontalArrangement = Arrangement.Center,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Speed,
+                                contentDescription = null,
+                                modifier = Modifier.size(15.dp),
+                                tint = if (selectedScreenTab == 0) AppTheme.colors.accentGreen else AppTheme.colors.textSecondary
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "HUD En Vivo",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = if (selectedScreenTab == 0) AppTheme.colors.accentGreen else AppTheme.colors.textSecondary
+                            )
+                        }
+                    }
+
+                    Surface(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(10.dp))
+                            .clickable { selectedScreenTab = 1 },
+                        color = if (selectedScreenTab == 1) AppTheme.colors.accentSelected else AppTheme.colors.surfaceVariant,
+                        border = androidx.compose.foundation.BorderStroke(1.dp, if (selectedScreenTab == 1) AppTheme.colors.accentBlue else AppTheme.colors.borderSubtle)
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(vertical = 8.dp),
+                            horizontalArrangement = Arrangement.Center,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Collections,
+                                contentDescription = null,
+                                modifier = Modifier.size(15.dp),
+                                tint = if (selectedScreenTab == 1) AppTheme.colors.accentBlue else AppTheme.colors.textSecondary
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "Visor Estudio",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = if (selectedScreenTab == 1) AppTheme.colors.accentBlue else AppTheme.colors.textSecondary
+                            )
+                        }
+                    }
+                }
+
+                if (selectedScreenTab == 1) {
+                    GtoStudyViewerScreen(
+                        onDismiss = { selectedScreenTab = 0 },
+                        modifier = Modifier.fillMaxSize()
+                    )
+                } else {
+                    LazyColumn(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(horizontal = 16.dp),
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
                 item { Spacer(modifier = Modifier.height(4.dp)) }
 
                 item {
@@ -565,6 +645,8 @@ fun PokerScreen(
                 }
 
                 item { Spacer(modifier = Modifier.height(24.dp)) }
+                    }
+                }
             }
         }
     }
