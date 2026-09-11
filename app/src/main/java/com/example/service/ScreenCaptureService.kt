@@ -280,23 +280,26 @@ class ScreenCaptureService : Service() {
             captureHeight,
             screenDensity,
             DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
-            imageReader?.surface,
+            null, // Cero superficie activa en reposo: CERO streaming, CERO consumo de GPU/RAM
             null,
             handler
         )
 
-        Log.d(TAG, "VirtualDisplay initialized: ${captureWidth}x${captureHeight}")
+        Log.d(TAG, "VirtualDisplay initialized on-demand (standby): ${captureWidth}x${captureHeight}")
     }
 
     /**
-     * Captures a single frame exclusively when requested by the user,
-     * maintaining high performance and zero unnecessary background rendering.
+     * Captura un único fotograma bajo demanda exclusiva del usuario.
+     * Conecta la superficie de renderizado únicamente durante el disparo y la desconecta de inmediato.
      */
     fun captureSingleFrame() {
-        val reader = imageReader
-        if (reader == null) {
-            Log.w(TAG, "ImageReader not ready for capture")
-            return
+        val reader = imageReader ?: return
+        val vd = virtualDisplay
+
+        try {
+            vd?.setSurface(reader.surface)
+        } catch (e: Exception) {
+            Log.w(TAG, "Error attaching surface for single frame", e)
         }
 
         handler.postDelayed({
@@ -306,29 +309,44 @@ class ScreenCaptureService : Service() {
                 if (image != null) {
                     val bitmap = imageToBitmap(image)
                     if (bitmap != null) {
+                        val old = lastCapturedBitmap
                         lastCapturedBitmap = bitmap
+                        if (old != null && old != bitmap && !old.isRecycled) old.recycle()
                         _capturedBitmapFlow.tryEmit(bitmap)
-                        Log.d(TAG, "Successfully captured single frame: ${bitmap.width}x${bitmap.height}")
+                        Log.d(TAG, "Captura única completada: ${bitmap.width}x${bitmap.height}")
                     }
-                } else {
-                    Log.w(TAG, "No frame available in ImageReader")
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "Error acquiring frame from ImageReader", e)
             } finally {
                 image?.close()
+                try {
+                    vd?.setSurface(null)
+                } catch (e: Exception) {
+                    // Surface desconectada
+                }
             }
-        }, 150) // Small delay to ensure virtual display buffer is rendered
+        }, 120)
     }
 
     /**
-     * Captura garantizada de frame 100% fresco directamente desde MediaProjection
-     * después de haber ocultado el overlay, evitando frames cacheados o congelados.
+     * Captura garantizada de fotograma instantáneo bajo demanda:
+     * 1. Conecta la superficie al VirtualDisplay para este fotograma único.
+     * 2. Espera el render limpio sin el overlay.
+     * 3. Desconecta de inmediato la superficie para dejar el teléfono en 0% consumo (sin streaming).
      */
     suspend fun captureFreshFrame(timeoutMs: Long = 400L): Bitmap? {
         val reader = imageReader ?: return lastCapturedBitmap
+        val vd = virtualDisplay
 
-        // 1. Drenar y descartar inmediatamente todos los frames obsoletos que aún contienen el overlay
+        // 1. Activar superficie en VirtualDisplay EXCLUSIVAMENTE para este disparo
+        try {
+            vd?.setSurface(reader.surface)
+        } catch (e: Exception) {
+            Log.w(TAG, "Error attaching surface to VirtualDisplay", e)
+        }
+
+        // 2. Drenar cualquier frame transitorio previo
         try {
             while (true) {
                 val stale = reader.acquireLatestImage() ?: break
@@ -338,7 +356,6 @@ class ScreenCaptureService : Service() {
             // Buffer transitorio vaciado
         }
 
-        // 2. Registrar CompletableDeferred para capturar el NUEVO frame renderizado por Android sin el overlay
         val deferred = CompletableDeferred<Bitmap>()
         pendingFrameDeferred = deferred
 
@@ -346,14 +363,16 @@ class ScreenCaptureService : Service() {
             withTimeoutOrNull(timeoutMs) {
                 deferred.await()
             } ?: run {
-                // Si el compositor de Android no produjo un nuevo fotograma por estar la mesa estática,
-                // intentar adquirir el último frame del reader o fallback
                 try {
                     val fallbackImg = reader.acquireLatestImage()
                     if (fallbackImg != null) {
                         val bmp = imageToBitmap(fallbackImg)
                         fallbackImg.close()
-                        if (bmp != null) lastCapturedBitmap = bmp
+                        if (bmp != null) {
+                            val old = lastCapturedBitmap
+                            lastCapturedBitmap = bmp
+                            if (old != null && old != bmp && !old.isRecycled) old.recycle()
+                        }
                         bmp
                     } else {
                         lastCapturedBitmap
@@ -363,11 +382,17 @@ class ScreenCaptureService : Service() {
                 }
             }
         } catch (e: Exception) {
-            Log.w(TAG, "Timeout esperando frame fresco, usando último buffer disponible", e)
+            Log.w(TAG, "Timeout esperando captura instantánea", e)
             lastCapturedBitmap
         } finally {
             if (pendingFrameDeferred == deferred) {
                 pendingFrameDeferred = null
+            }
+            // 3. DESCONECTAR superficie INMEDIATAMENTE: reposo absoluto (0 FPS, 0 streaming)
+            try {
+                vd?.setSurface(null)
+            } catch (e: Exception) {
+                // Detached
             }
         }
     }
@@ -452,8 +477,8 @@ class ScreenCaptureService : Service() {
         )
 
         return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("Poker GTO Vision Activo")
-            .setContentText("Listo para capturar jugadas de Texas Hold'em en tiempo real")
+            .setContentTitle("Poker GTO Asistente")
+            .setContentText("Modo reposo • Toca 'Escanear' en la burbuja para analizar")
             .setSmallIcon(R.drawable.ic_launcher_foreground)
             .setContentIntent(openAppPendingIntent)
             .setOngoing(true)
