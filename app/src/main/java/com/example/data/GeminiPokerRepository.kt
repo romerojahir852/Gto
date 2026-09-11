@@ -47,14 +47,14 @@ class GeminiPokerRepository {
 
     /**
      * Modelos activos en Google AI Studio (2026).
-     * gemini-3.8-flash es el modelo principal especificado por el usuario (~3s).
-     * Modelos lite de respaldo inmediato ante picos de demanda 503 (~1.6s).
+     * gemini-flash-lite-latest como primer modelo prioritario (~1.6s) para máxima fluidez en juego.
+     * gemini-3.8-flash y gemini-3.6-flash como respaldos analíticos.
      */
     private val candidateModels = listOf(
-        "gemini-3.8-flash",
         "gemini-flash-lite-latest",
-        "gemini-3.5-flash-lite",
-        "gemini-3.6-flash"
+        "gemini-3.8-flash",
+        "gemini-3.6-flash",
+        "gemini-3.5-flash-lite"
     )
 
     /**
