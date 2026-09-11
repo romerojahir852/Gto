@@ -37,8 +37,8 @@ class GeminiPokerRepository {
 
     companion object {
         private const val TAG = "GeminiPokerRepo"
-        // 7000ms: tiempo óptimo para respuesta en redes móviles con latencia
-        private const val TIMEOUT_MS = 7000L
+        // 14000ms: tiempo óptimo para respuesta en redes móviles con latencia
+        private const val TIMEOUT_MS = 14000L
         private const val MAX_IMAGE_DIMENSION = 960
         private const val JPEG_COMPRESSION_QUALITY = 75
         private const val ENDPOINT_BASE = "https://generativelanguage.googleapis.com/v1beta/models"
@@ -60,8 +60,8 @@ class GeminiPokerRepository {
     private val ktorClient by lazy {
         HttpClient(Android) {
             engine {
-                connectTimeout = 4_000
-                socketTimeout = 5_000
+                connectTimeout = 10_000
+                socketTimeout = 14_000
             }
             expectSuccess = false
         }
@@ -168,9 +168,19 @@ class GeminiPokerRepository {
                 if (!responseText.isNullOrBlank()) {
                     Log.d("GEMINI_DEBUG", "RAW AI RESPONSE (${callResult.modelUsed}): $responseText")
                     val parsedState = parseSurgicalResponse(responseText, currentState, latency)
-                    if (parsedState.cartasPropias.isNotEmpty() || parsedState.cartasComunitarias.isNotEmpty()) {
+                    val hasCards = parsedState.cartasPropias.isNotEmpty() || parsedState.cartasComunitarias.isNotEmpty()
+                    val hasTableInfo = (parsedState.jugadores in 2..9) || parsedState.bote > 0.0 || parsedState.dealerPosition.isNotBlank()
+
+                    if (hasCards || hasTableInfo) {
                         val modelLabel = "Gemini 3.8 Flash"
-                        val statusMsg = "⚡ $modelLabel: ${parsedState.cartasPropias.joinToString(" ") { it.displayString }} | Mesa: ${parsedState.cartasComunitarias.joinToString(" ") { it.displayString }} · ${latency}ms"
+                        val cardsPart = if (hasCards) {
+                            val heroStr = if (parsedState.cartasPropias.isNotEmpty()) parsedState.cartasPropias.joinToString(" ") { it.displayString } else "—"
+                            val boardStr = if (parsedState.cartasComunitarias.isNotEmpty()) " | Mesa: ${parsedState.cartasComunitarias.joinToString(" ") { it.displayString }}" else ""
+                            "$heroStr$boardStr"
+                        } else {
+                            "Mesa: ${parsedState.jugadores}j · BTN: ${parsedState.dealerPosition}"
+                        }
+                        val statusMsg = "⚡ $modelLabel: $cardsPart · ${latency}ms"
                         val finalParsed = parsedState.copy(statusMessage = statusMsg)
                         PokerGameStateManager.updateIncremental(
                             fase = finalParsed.fase,
@@ -317,8 +327,11 @@ class GeminiPokerRepository {
                         })
                         put("generationConfig", buildJsonObject {
                             put("responseMimeType", "application/json")
-                            put("maxOutputTokens", 260)
-                            put("temperature", 0.0)
+                            put("maxOutputTokens", 2048)
+                            put("thinkingConfig", buildJsonObject {
+                                put("thinking_level", "LOW")
+                                put("thinkingLevel", "LOW")
+                            })
                         })
                     }
 

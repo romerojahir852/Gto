@@ -212,8 +212,9 @@ class FloatingOverlayManager(
     }
 
     private suspend fun analizarPantallaConOcultamiento() {
-        // 1. Hiding UI: Pasar la UI flotante a GONE y alpha 0f en WindowManager
+        // 1. Hiding UI: Colapsar y pasar la UI flotante a GONE y alpha 0f en WindowManager
         withContext(Dispatchers.Main) {
+            PokerGameStateManager.setExpanded(false)
             val view = composeView
             val params = layoutParams
             if (view != null && params != null && view.isAttachedToWindow) {
@@ -229,8 +230,8 @@ class FloatingOverlayManager(
             composeView?.alpha = 0f
         }
 
-        // 2. Delay Estratégico (180ms) para garantizar render 100% limpio en MediaProjection sin el overlay
-        delay(180L)
+        // 2. Delay Estratégico (220ms) para garantizar render 100% limpio en MediaProjection sin el overlay
+        delay(220L)
 
         // 3. Captura del frame nativo desde MediaProjection sin interferencia de la nube ni del botón
         val rawBitmap = withContext(Dispatchers.IO) {

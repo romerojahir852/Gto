@@ -307,21 +307,39 @@ object LocalCardOcrDetector {
             "⚡ OCR Local: Mesa en escaneo · ${latencyMs}ms"
         }
 
+        // 5B. Detección visual y angular del Botón Dealer ('D' / 'BTN') y asignación de posiciones de mesa
+        val (detectedDealer, detectedHeroPos, dealerFound) = detectDealerPositionAndHeroPos(
+            visionText, bitmap, width, height, finalPlayers
+        )
+        val finalDealer = if (dealerFound) detectedDealer else currentState.dealerPosition
+        val finalMyPos = if (dealerFound) detectedHeroPos else currentState.posicion
+
+        // 5C. Detección de Fichas de jugadores y apuesta rival
+        val (heroChips, rivalBet) = detectPlayerChipsAndStacks(visionText, width, height)
+        val finalRivalBet = rivalBet ?: currentState.apuestaRival
+
         GTOStateManager.updateFromAnalysis(
             fase = detectedFase,
             bote = updatedBote,
             jugadores = finalPlayers,
-            dealerPos = currentState.dealerPosition,
-            myPos = currentState.posicion
+            dealerPos = finalDealer,
+            myPos = finalMyPos
         )
+
+        val positionsSummary = GTOStateManager.getPositionsSummary(finalPlayers, finalMyPos)
 
         return currentState.copy(
             fase = detectedFase,
             cartasPropias = heroCards,
             cartasComunitarias = boardCards,
             bote = updatedBote,
+            apuestaRival = finalRivalBet,
             bigBlindSize = updatedBlinds,
             jugadores = finalPlayers,
+            posicion = finalMyPos,
+            dealerPosition = finalDealer,
+            dealerDetected = dealerFound,
+            tablePositionsSummary = positionsSummary,
             outs = engineResult?.outs ?: currentState.outs,
             winRate = engineResult?.winRate ?: currentState.winRate,
             gtoAction = engineResult?.action ?: currentState.gtoAction,
@@ -992,6 +1010,121 @@ object LocalCardOcrDetector {
             }
         }
         return result
+    }
+
+    /**
+     * Detección visual y angular del Botón Dealer ('D', 'BTN') y asignación de posiciones de mesa.
+     */
+    private fun detectDealerPositionAndHeroPos(
+        visionText: Text,
+        bitmap: Bitmap,
+        width: Int,
+        height: Int,
+        playerCount: Int
+    ): Triple<String, String, Boolean> {
+        val centerX = width / 2.0
+        val centerY = height * 0.52
+
+        // 1. Detección por OCR de token "D", "BTN", "DEALER"
+        for (block in visionText.textBlocks) {
+            for (line in block.lines) {
+                for (elem in line.elements) {
+                    val raw = elem.text.trim().uppercase()
+                    val box = elem.boundingBox ?: continue
+                    if (raw == "D" || raw == "BTN" || raw == "DEALER" || raw == "D.") {
+                        val cx = box.centerX()
+                        val cy = box.centerY()
+                        if (cy in (height * 0.22).toInt()..(height * 0.85).toInt()) {
+                            val angle = Math.toDegrees(Math.atan2((cy - centerY), (cx - centerX)))
+                            val (dealerPos, heroPos) = mapAngleToPositions(angle, playerCount)
+                            return Triple(dealerPos, heroPos, true)
+                        }
+                    }
+                }
+            }
+        }
+
+        // 2. Detección cromática del puck amarillo de dealer en el perímetro del tapete
+        var yellowPixels = 0
+        var sumX = 0L
+        var sumY = 0L
+
+        val startY = (height * 0.25).toInt()
+        val endY = (height * 0.82).toInt()
+        val startX = (width * 0.08).toInt()
+        val endX = (width * 0.92).toInt()
+
+        for (y in startY until endY step 2) {
+            for (x in startX until endX step 2) {
+                val pixel = bitmap.getPixel(x, y)
+                val r = Color.red(pixel)
+                val g = Color.green(pixel)
+                val b = Color.blue(pixel)
+
+                // Puck amarillo PokerStars / BC Poker / GGPoker (R > 180, G > 160, B < 85)
+                if (r > 180 && g > 160 && b < 85) {
+                    yellowPixels++
+                    sumX += x
+                    sumY += y
+                }
+            }
+        }
+
+        if (yellowPixels >= 25) {
+            val avgX = (sumX / yellowPixels).toInt()
+            val avgY = (sumY / yellowPixels).toInt()
+            val angle = Math.toDegrees(Math.atan2((avgY - centerY), (avgX - centerX)))
+            val (dealerPos, heroPos) = mapAngleToPositions(angle, playerCount)
+            return Triple(dealerPos, heroPos, true)
+        }
+
+        return Triple("BTN", "BTN", false)
+    }
+
+    private fun mapAngleToPositions(angleDeg: Double, playerCount: Int): Pair<String, String> {
+        return if (angleDeg in 60.0..120.0) {
+            Pair("BTN", "BTN")
+        } else if (angleDeg in 10.0..60.0) {
+            Pair("CO", "BTN")
+        } else if (angleDeg in -45.0..10.0) {
+            Pair("MP", "CO")
+        } else if (angleDeg in -135.0..-45.0) {
+            Pair("UTG", "BB")
+        } else if (angleDeg in 120.0..170.0) {
+            Pair("SB", "BTN")
+        } else {
+            Pair("BB", "SB")
+        }
+    }
+
+    /**
+     * Detección de Fichas de jugadores y apuesta rival.
+     */
+    private fun detectPlayerChipsAndStacks(
+        visionText: Text,
+        width: Int,
+        height: Int
+    ): Pair<Double?, Double?> {
+        var heroChips: Double? = null
+        var rivalBet: Double? = null
+        val heroAreaY = height * 0.65f
+
+        for (block in visionText.textBlocks) {
+            val text = block.text.trim()
+            val box = block.boundingBox ?: continue
+            val num = parsePokerNumericString(text) ?: continue
+
+            if (box.centerY() > heroAreaY && box.centerX() in (width * 0.2f).toInt()..(width * 0.8f).toInt()) {
+                if (heroChips == null || box.centerY() > heroAreaY) {
+                    heroChips = num
+                }
+            } else if (box.centerY() in (height * 0.40f).toInt()..(height * 0.62f).toInt()) {
+                if (!text.contains("BOTE", ignoreCase = true) && !text.contains("POT", ignoreCase = true) && !text.contains("POZO", ignoreCase = true)) {
+                    rivalBet = num
+                }
+            }
+        }
+        return Pair(heroChips, rivalBet)
     }
 
     private data class DetectedCard(
