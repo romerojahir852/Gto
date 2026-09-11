@@ -242,8 +242,8 @@ class GeminiPokerRepository {
                 Log.w("GEMINI_ERROR", "Gemini devolvió error: ${callResult.errorMessage}")
             }
         } catch (t: Throwable) {
-            geminiFailureReason = t.message ?: "Timeout de conexión"
-            Log.w("GEMINI_ERROR", "Fallo en llamada a Gemini: ${t.message}", t)
+            geminiFailureReason = t.message ?: t.javaClass.simpleName
+            Log.w("GEMINI_ERROR", "Fallo en llamada a Gemini: ${t.javaClass.simpleName}: ${t.message}", t)
         }
 
         val latency = System.currentTimeMillis() - startTime
@@ -255,13 +255,27 @@ class GeminiPokerRepository {
             "Modelo no disponible"
         } else if (geminiFailureReason.contains("429") || geminiFailureReason.contains("RESOURCE_EXHAUSTED", ignoreCase = true)) {
             "Cuota agotada"
-        } else if (geminiFailureReason.contains("Timeout", ignoreCase = true)) {
+        } else if (geminiFailureReason.contains("TimeoutCancellation", ignoreCase = true) ||
+                   geminiFailureReason.contains("SocketTimeout", ignoreCase = true) ||
+                   geminiFailureReason.contains("ConnectTimeout", ignoreCase = true)) {
             "Tiempo de espera agotado"
+        } else if (geminiFailureReason.contains("UnresolvedAddress", ignoreCase = true) ||
+                   geminiFailureReason.contains("Unable to resolve", ignoreCase = true) ||
+                   geminiFailureReason.contains("No address", ignoreCase = true)) {
+            "Sin conexión a internet"
+        } else if (geminiFailureReason.contains("SSL", ignoreCase = true) ||
+                   geminiFailureReason.contains("Handshake", ignoreCase = true) ||
+                   geminiFailureReason.contains("Certificate", ignoreCase = true)) {
+            "Error de conexión segura (SSL)"
+        } else if (geminiFailureReason.contains("connect", ignoreCase = true) ||
+                   geminiFailureReason.contains("refused", ignoreCase = true) ||
+                   geminiFailureReason.contains("reset", ignoreCase = true)) {
+            "Error de conexión de red"
         } else {
-            geminiFailureReason.take(30)
+            geminiFailureReason.take(40)
         }
 
-        val errorStatus = "⚠️ Error Gemini: $shortErr. Toca 🔑 para revisar tu clave."
+        val errorStatus = "⚠️ Error Gemini: $shortErr. Toca 🔑"
         PokerGameStateManager.updateIncremental(
             statusMessage = errorStatus,
             latencyMs = latency,

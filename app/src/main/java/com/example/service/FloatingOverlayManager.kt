@@ -46,9 +46,7 @@ class FloatingOverlayManager(
     private val context: Context,
     private val repository: GeminiPokerRepository = GeminiPokerRepository()
 ) {
-    companion object {
-        private const val TAG = "FloatingOverlayManager"
-    }
+    // companion object moved to bottom of class for overlayFocusRef
 
     private val windowManager = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
     private val serviceLifecycleOwner = ServiceLifecycleOwner()
@@ -111,6 +109,9 @@ class FloatingOverlayManager(
             }
             layoutParams = params
 
+            // Registrar la referencia para que el HUD pueda solicitar foco
+            overlayFocusRef = this@FloatingOverlayManager
+
             val view = ComposeView(context).apply {
                 setViewTreeLifecycleOwner(serviceLifecycleOwner)
                 setViewTreeViewModelStoreOwner(serviceLifecycleOwner)
@@ -129,6 +130,9 @@ class FloatingOverlayManager(
                             },
                             onCloseCloud = {
                                 closeCloud()
+                            },
+                            onRequestFocus = { needsFocus ->
+                                setOverlayFocusable(needsFocus)
                             }
                         )
                     }
@@ -185,6 +189,36 @@ class FloatingOverlayManager(
      */
     fun closeCloud() {
         PokerGameStateManager.setExpanded(false)
+    }
+
+    /**
+     * Alterna FLAG_NOT_FOCUSABLE en el overlay para permitir que el teclado
+     * aparezca cuando el diálogo de API Key está abierto.
+     * Cuando needsFocus = true, quita FLAG_NOT_FOCUSABLE -> el teclado puede aparecer.
+     * Cuando needsFocus = false, restaura FLAG_NOT_FOCUSABLE -> el overlay no roba foco.
+     */
+    fun setOverlayFocusable(needsFocus: Boolean) {
+        val view = composeView ?: return
+        val params = layoutParams ?: return
+        if (!view.isAttachedToWindow) return
+        try {
+            if (needsFocus) {
+                params.flags = params.flags and WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE.inv()
+            } else {
+                params.flags = params.flags or WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
+            }
+            windowManager.updateViewLayout(view, params)
+            Log.d(TAG, "Overlay focusable = $needsFocus")
+        } catch (e: Exception) {
+            Log.w(TAG, "Error toggling overlay focus: ${e.message}")
+        }
+    }
+
+    companion object {
+        private const val TAG = "FloatingOverlayManager"
+        /** Referencia estática para que el Composable pueda solicitar foco */
+        @Volatile
+        var overlayFocusRef: FloatingOverlayManager? = null
     }
 
     /**

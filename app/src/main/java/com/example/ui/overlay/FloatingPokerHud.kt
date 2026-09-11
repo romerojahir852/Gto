@@ -86,6 +86,7 @@ fun FloatingPokerHud(
     onDrag: (Offset) -> Unit,
     onTriggerClick: () -> Unit,
     onCloseCloud: () -> Unit,
+    onRequestFocus: (Boolean) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -377,7 +378,9 @@ fun FloatingPokerHud(
                                     .testTag("hud_header_api_key_btn")
                                     .clickable {
                                         enteredKey = com.example.data.ApiKeyManager.getApiKey(context) ?: ""
-                                        showApiKeyDialog = !showApiKeyDialog
+                                        val newState = !showApiKeyDialog
+                                        showApiKeyDialog = newState
+                                        onRequestFocus(newState)
                                     }
                             ) {
                                 Icon(
@@ -418,9 +421,13 @@ fun FloatingPokerHud(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clickable {
-                                    if (state.statusMessage.contains("API Key", ignoreCase = true)) {
+                                    if (state.statusMessage.contains("API Key", ignoreCase = true) ||
+                                        state.statusMessage.contains("clave", ignoreCase = true) ||
+                                        state.statusMessage.contains("Toca", ignoreCase = true) ||
+                                        state.statusMessage.contains("🔑")) {
                                         enteredKey = com.example.data.ApiKeyManager.getApiKey(context) ?: ""
                                         showApiKeyDialog = true
+                                        onRequestFocus(true)
                                     }
                                 }
                         ) {
@@ -470,7 +477,10 @@ fun FloatingPokerHud(
                                         )
                                     }
                                     IconButton(
-                                        onClick = { showApiKeyDialog = false },
+                                        onClick = {
+                                            showApiKeyDialog = false
+                                            onRequestFocus(false)
+                                        },
                                         modifier = Modifier.size(16.dp)
                                     ) {
                                         Icon(
@@ -557,6 +567,7 @@ fun FloatingPokerHud(
                                                 PokerGameStateManager.updateStatus("⚠️ API Key eliminada")
                                             }
                                             showApiKeyDialog = false
+                                            onRequestFocus(false)
                                         }
                                     ) {
                                         Text(
