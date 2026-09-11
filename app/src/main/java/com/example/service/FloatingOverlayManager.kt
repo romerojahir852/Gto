@@ -242,7 +242,7 @@ class FloatingOverlayManager(
             }
             PokerGameStateManager.setExpanded(true)
             PokerGameStateManager.setLoading(true)
-            PokerGameStateManager.updateStatus("Calculando visión con Gemini Serie 3...")
+            PokerGameStateManager.updateStatus("Escaneando mesa...")
         }
 
         // 5. Ejecutar análisis GTO en segundo plano con el frame nativo completo (sin cortes destructivos)

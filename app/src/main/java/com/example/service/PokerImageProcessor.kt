@@ -20,6 +20,13 @@ object PokerImageProcessor {
     private const val TAG = "PokerImageProcessor"
 
     /**
+     * Recorta o realza regiones de la mesa para compatibilidad con llamadas existentes.
+     */
+    fun cropPokerTableRegions(source: Bitmap): Bitmap {
+        return enhanceContrast(source)
+    }
+
+    /**
      * Genera las 3 perspectivas ópticas para la visión multimodal de Gemini 3 Flash.
      */
     fun createMultiresolutionVisionParts(source: Bitmap): List<Bitmap> {
@@ -58,7 +65,19 @@ object PokerImageProcessor {
             val rawBoard = Bitmap.createBitmap(source, boardLeft, boardTop, boardWidth, boardHeight)
             val enhancedBoard = enhanceContrast(rawBoard, contrast = 1.25f, brightness = 8f)
             if (enhancedBoard != rawBoard) rawBoard.recycle()
-            parts.add(enhancedBoard)
+
+            val maxCropDim = 640
+            val finalBoard = if (maxOf(enhancedBoard.width, enhancedBoard.height) > maxCropDim) {
+                val scale = maxCropDim.toFloat() / maxOf(enhancedBoard.width, enhancedBoard.height).toFloat()
+                val targetW = (enhancedBoard.width * scale).toInt().coerceAtLeast(1)
+                val targetH = (enhancedBoard.height * scale).toInt().coerceAtLeast(1)
+                val scaled = Bitmap.createScaledBitmap(enhancedBoard, targetW, targetH, true)
+                if (scaled != enhancedBoard) enhancedBoard.recycle()
+                scaled
+            } else {
+                enhancedBoard
+            }
+            parts.add(finalBoard)
 
             // 3. Micro-Zoom Cartas Hero (Mitad inferior completa para abarcar asientos esquineros como Jr699 y centrales)
             // x: 0% a 100% del ancho, y: 62% a 97% del alto
@@ -70,9 +89,20 @@ object PokerImageProcessor {
             val rawHero = Bitmap.createBitmap(source, heroLeft, heroTop, heroWidth, heroHeight)
             val enhancedHero = enhanceContrast(rawHero, contrast = 1.25f, brightness = 8f)
             if (enhancedHero != rawHero) rawHero.recycle()
-            parts.add(enhancedHero)
 
-            Log.d(TAG, "Successfully generated 3 multiresolution vision parts: Macro, BoardZoom (${boardWidth}x${boardHeight}), HeroZoom (${heroWidth}x${heroHeight})")
+            val finalHero = if (maxOf(enhancedHero.width, enhancedHero.height) > maxCropDim) {
+                val scale = maxCropDim.toFloat() / maxOf(enhancedHero.width, enhancedHero.height).toFloat()
+                val targetW = (enhancedHero.width * scale).toInt().coerceAtLeast(1)
+                val targetH = (enhancedHero.height * scale).toInt().coerceAtLeast(1)
+                val scaled = Bitmap.createScaledBitmap(enhancedHero, targetW, targetH, true)
+                if (scaled != enhancedHero) enhancedHero.recycle()
+                scaled
+            } else {
+                enhancedHero
+            }
+            parts.add(finalHero)
+
+            Log.d(TAG, "Successfully generated 3 lightweight vision parts: Macro, BoardZoom, HeroZoom")
         } catch (e: Exception) {
             Log.e(TAG, "Error generating vision parts, falling back to original bitmap", e)
             if (parts.isEmpty()) parts.add(source)

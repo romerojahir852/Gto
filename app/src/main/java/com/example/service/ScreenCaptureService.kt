@@ -314,21 +314,25 @@ class ScreenCaptureService : Service() {
      * Captura garantizada de frame 100% fresco directamente desde MediaProjection
      * después de haber ocultado el overlay, evitando frames cacheados o congelados.
      */
-    suspend fun captureFreshFrame(timeoutMs: Long = 1200L): Bitmap? {
+    suspend fun captureFreshFrame(timeoutMs: Long = 350L): Bitmap? {
         val reader = imageReader ?: return lastCapturedBitmap
 
-        // 1. Purga total de buffers previos: descartar fotogramas antiguos donde el overlay seguía visible
+        // 1. Si ya hay un frame disponible en el reader tras el delay de ocultamiento, tomarlo de inmediato
         try {
-            var oldImg: Image?
-            do {
-                oldImg = reader.acquireLatestImage() ?: reader.acquireNextImage()
-                oldImg?.close()
-            } while (oldImg != null)
+            val directImg = reader.acquireLatestImage()
+            if (directImg != null) {
+                val bmp = imageToBitmap(directImg)
+                directImg.close()
+                if (bmp != null) {
+                    lastCapturedBitmap = bmp
+                    return bmp
+                }
+            }
         } catch (e: Exception) {
-            // Buffer vaciado por completo
+            // Buffer transitorio, pasar a deferred
         }
 
-        // 2. Registrar deferred para recibir el siguiente frame renderizado por Android
+        // 2. Si no hay frame inmediato, esperar el siguiente render de Android con timeout ágil (350ms)
         val deferred = CompletableDeferred<Bitmap>()
         pendingFrameDeferred = deferred
 

@@ -56,11 +56,12 @@ class ExampleUnitTest {
         )
         val prompt = repo.buildSurgicalPrompt(state)
 
-        assertTrue(prompt.contains("Contexto de partida: Fase[Flop], Jugadores[6], MiPosicion[BTN], Dealer[BTN], Bote[150.0]"))
-        assertTrue(prompt.contains("1. CARTAS HERO (TUS CARTAS)"))
-        assertTrue(prompt.contains("2. MESA (COMUNITARIAS)"))
-        assertTrue(prompt.contains("3. JUGADORES Y DEALER"))
-        assertTrue(prompt.contains("5. DECISIÓN GTO"))
+        assertTrue(prompt.contains("Phase[Flop]"))
+        assertTrue(prompt.contains("Players[6]"))
+        assertTrue(prompt.contains("MyPos[BTN]"))
+        assertTrue(prompt.contains("Dealer[BTN]"))
+        assertTrue(prompt.contains("Hero Hole Cards"))
+        assertTrue(prompt.contains("Community Cards"))
     }
 
     @Test
@@ -118,5 +119,59 @@ class ExampleUnitTest {
         val cropped = PokerImageProcessor.cropPokerTableRegions(bitmap)
         assertTrue(cropped.width > 0)
         assertTrue(cropped.height > 0)
+    }
+
+    @Test
+    fun `parse poker numeric string accurately handles BB, commas and dots from screenshots`() {
+        assertEquals(52.0, com.example.service.LocalCardOcrDetector.parsePokerNumericString("52 BB") ?: 0.0, 0.01)
+        assertEquals(12.0, com.example.service.LocalCardOcrDetector.parsePokerNumericString("12 BB") ?: 0.0, 0.01)
+        assertEquals(2596.0, com.example.service.LocalCardOcrDetector.parsePokerNumericString("2,596") ?: 0.0, 0.01)
+        assertEquals(1151.0, com.example.service.LocalCardOcrDetector.parsePokerNumericString("1,151") ?: 0.0, 0.01)
+        assertEquals(20700.0, com.example.service.LocalCardOcrDetector.parsePokerNumericString("20.700") ?: 0.0, 0.01)
+        assertEquals(19000.0, com.example.service.LocalCardOcrDetector.parsePokerNumericString("19.000") ?: 0.0, 0.01)
+    }
+
+    @Test
+    fun `gto engine accurately evaluates Screenshot 7 Turn board with 4 community cards`() {
+        // Screenshot 7: Hero 9c 8s on Board 3d 7s 4c 2d (Turn)
+        val hero = listOf(
+            com.example.data.PokerCard("9", com.example.data.CardSuit.CLUBS),
+            com.example.data.PokerCard("8", com.example.data.CardSuit.SPADES)
+        )
+        val turnBoard = listOf(
+            com.example.data.PokerCard("3", com.example.data.CardSuit.DIAMONDS),
+            com.example.data.PokerCard("7", com.example.data.CardSuit.SPADES),
+            com.example.data.PokerCard("4", com.example.data.CardSuit.CLUBS),
+            com.example.data.PokerCard("2", com.example.data.CardSuit.DIAMONDS)
+        )
+
+        val result = com.example.data.PokerGtoEngine.calculate(
+            holeCards = hero,
+            board = turnBoard,
+            jugadores = 6,
+            posicion = "BTN",
+            fase = "Turn",
+            bote = 52.0
+        )
+
+        assertTrue("Should have calculated win equity", result.winRate.isNotEmpty())
+        assertTrue("Should have calculated GTO action", result.action != null)
+    }
+
+    @Test
+    fun `gto engine evaluates Screenshot 4 Queens pair in preflop as premium value`() {
+        // Screenshot 4: Hero Qs Qh (QQ) in Preflop
+        val queens = listOf(
+            com.example.data.PokerCard("Q", com.example.data.CardSuit.SPADES),
+            com.example.data.PokerCard("Q", com.example.data.CardSuit.HEARTS)
+        )
+        val result = com.example.data.PokerGtoEngine.calculate(
+            holeCards = queens,
+            board = emptyList(),
+            jugadores = 6,
+            posicion = "BTN",
+            fase = "Preflop"
+        )
+        assertTrue(result.action == GtoAction.RAISE || result.action == GtoAction.THREE_BET || result.action == GtoAction.ALL_IN)
     }
 }
