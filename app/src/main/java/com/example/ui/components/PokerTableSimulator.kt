@@ -1,4 +1,4 @@
-package com.example.ui
+package com.example.ui.components
 
 import com.example.ui.theme.BgWhite
 import com.example.ui.theme.BgSoft
@@ -6,7 +6,7 @@ import com.example.ui.theme.Ink
 import com.example.ui.theme.Ink2
 import com.example.ui.theme.Ink3
 import com.example.ui.theme.Line
-import com.example.ui.theme.Line2.components
+import com.example.ui.theme.Line2
 
 import android.graphics.Bitmap
 import android.graphics.Canvas
@@ -120,7 +120,7 @@ fun PokerTableSimulator(
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = Color(0xFF0D1813)),
         border = CardDefaults.outlinedCardBorder().copy(
-            brush = androidx.compose.ui.graphics.SolidLine2
+            brush = androidx.compose.ui.graphics.SolidColor(Line2)
         )
     ) {
         Column(

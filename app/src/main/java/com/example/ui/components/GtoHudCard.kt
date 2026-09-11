@@ -1,4 +1,4 @@
-package com.example.ui
+package com.example.ui.components
 
 import com.example.ui.theme.BgWhite
 import com.example.ui.theme.BgSoft
@@ -6,7 +6,7 @@ import com.example.ui.theme.Ink
 import com.example.ui.theme.Ink2
 import com.example.ui.theme.Ink3
 import com.example.ui.theme.Line
-import com.example.ui.theme.Line2.components
+import com.example.ui.theme.Line2
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement

@@ -179,8 +179,8 @@ object LocalCardOcrDetector {
 
         // 4. Spatially Cluster Community Cards (Center Table: y in 30%..65%, x in 6%..94%)
         val boardCandidates = candidateCards.filter {
-            it.box.centerY() in (height * 0.30f)..(height * 0.65f) &&
-            it.box.centerX() in (width * 0.06f)..(width * 0.94f)
+            it.box.centerY().toFloat() in (height * 0.30f)..(height * 0.65f) &&
+            it.box.centerX().toFloat() in (width * 0.06f)..(width * 0.94f)
         }
 
         // Deduplicate board cards strictly by horizontal pixel position (X axis).
@@ -202,7 +202,7 @@ object LocalCardOcrDetector {
 
         // 5. Detect Hero Hole Cards (Lower Table: y > 55%)
         val heroCandidates = candidateCards.filter {
-            it.box.centerY() > height * 0.55f
+            it.box.centerY().toFloat() > height * 0.55f
         }
 
         var bestHeroPair: Pair<DetectedCard, DetectedCard>? = null
@@ -216,7 +216,7 @@ object LocalCardOcrDetector {
                 val horizDiff = abs(c1.box.centerX() - c2.box.centerX())
 
                 // Hero cards are adjacent side-by-side (vertDiff < 8% height, horizDiff in 2%..25% width)
-                if (vertDiff < height * 0.08f && horizDiff in (width * 0.02f)..(width * 0.25f)) {
+                if (vertDiff.toFloat() < height * 0.08f && horizDiff.toFloat() in (width * 0.02f)..(width * 0.25f)) {
                     // Favor pairs located at the bottom of the table
                     val score = (height - c1.box.centerY()) + (vertDiff * 2f)
                     if (score < bestPairScore) {
