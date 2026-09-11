@@ -48,13 +48,12 @@ class GeminiPokerRepository {
     }
 
     /**
-     * Cascada oficial de modelos Google Gemini para ultra baja latencia y máxima precisión:
-     * gemini-2.5-flash, gemini-2.0-flash y gemini-1.5-flash.
+     * Cascada de modelos de última generación Google Gemini:
+     * Endpoint principal gemini-3.8-flash y fallback estricto a gemini-3.5-flash.
      */
     private val candidateModels = listOf(
-        "gemini-2.5-flash",
-        "gemini-2.0-flash",
-        "gemini-1.5-flash"
+        "gemini-3.8-flash",
+        "gemini-3.5-flash"
     )
 
     /**
@@ -174,11 +173,7 @@ class GeminiPokerRepository {
                     if (parsedState.cartasPropias.isNotEmpty() || parsedState.cartasComunitarias.isNotEmpty()) {
                         val modelLabel = when (callResult.modelUsed) {
                             "gemini-3.8-flash" -> "Gemini 3.8 Flash"
-                            "gemini-3.7-flash" -> "Gemini 3.7 Flash"
-                            "gemini-3.6-flash" -> "Gemini 3.6 Flash"
-                            "gemini-2.5-flash" -> "Gemini 2.5 Flash"
-                            "gemini-2.0-flash" -> "Gemini 2.0 Flash"
-                            "gemini-1.5-flash" -> "Gemini 1.5 Flash"
+                            "gemini-3.5-flash" -> "Gemini 3.5 Flash"
                             else -> callResult.modelUsed ?: "Gemini 3.8 Flash"
                         }
                         val statusMsg = "⚡ $modelLabel: ${parsedState.cartasPropias.joinToString(" ") { it.displayString }} | Mesa: ${parsedState.cartasComunitarias.joinToString(" ") { it.displayString }} · ${latency}ms"
