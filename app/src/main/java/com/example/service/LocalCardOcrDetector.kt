@@ -655,7 +655,12 @@ object LocalCardOcrDetector {
      * Extrae números numéricos de póker admitiendo separadores de miles con coma o punto.
      */
     fun parsePokerNumericString(raw: String): Double? {
-        val clean = raw.replace("$", "").replace("€", "").replace("£", "").trim()
+        val clean = raw.replace("$", "").replace("€", "").replace("£", "")
+            .replace("BB", "", ignoreCase = true)
+            .replace("K", "", ignoreCase = true)
+            .replace("M", "", ignoreCase = true)
+            .replace(" ", "")
+            .trim()
         if (clean.isBlank()) return null
 
         val hasComma = clean.contains(',')

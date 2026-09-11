@@ -130,61 +130,154 @@ object PokerGtoEngine {
         val allCards = holeCards + board
         val holeRanks = holeCards.map { rankValue(it.rank) }
         val boardRanks = board.map { rankValue(it.rank) }
-
-        // Detección de pares y sets con el board
-        var hitPair = false
-        var hitTopPair = false
-        var hitSet = false
         val maxBoardRank = boardRanks.maxOrNull() ?: 0
 
+        // 1. Frecuencia de rangos (Pares, Tríos, Poker)
+        val rankCounts = allCards.groupBy { rankValue(it.rank) }.mapValues { it.value.size }
+        val fourOfAKind = rankCounts.filter { it.value >= 4 }.keys.firstOrNull()
+        val threeOfAKind = rankCounts.filter { it.value == 3 }.keys.sortedDescending()
+        val pairs = rankCounts.filter { it.value == 2 }.keys.sortedDescending()
+
+        val isPocketPair = holeRanks.size == 2 && holeRanks[0] == holeRanks[1]
+        val hitSet = (isPocketPair && boardRanks.contains(holeRanks[0])) ||
+                (threeOfAKind.isNotEmpty() && holeRanks.any { it in threeOfAKind })
+
+        // Full House: Trío + Pareja o doble trío
+        val isFullHouse = (threeOfAKind.size >= 2) || (threeOfAKind.isNotEmpty() && pairs.isNotEmpty())
+        val heroMatchesFullHouse = isFullHouse && holeRanks.any { it in threeOfAKind || it in pairs }
+
+        // Doble Pareja: 2 pares distintos con participación de Hero
+        val isTwoPair = pairs.size >= 2 && holeRanks.any { it in pairs }
+        val isTopTwoPair = isTwoPair && pairs.take(2).all { it in holeRanks || it >= maxBoardRank }
+
+        // Pareja / Top Pair
+        var hitPair = false
+        var hitTopPair = false
         for (hr in holeRanks) {
             val matches = boardRanks.count { it == hr }
             if (matches == 1) {
                 hitPair = true
                 if (hr >= maxBoardRank) hitTopPair = true
-            } else if (matches >= 2) {
-                hitSet = true
             }
         }
-        val isPocketPair = holeRanks.size == 2 && holeRanks[0] == holeRanks[1]
-        if (isPocketPair && boardRanks.contains(holeRanks[0])) {
-            hitSet = true
+        if (isPocketPair) {
+            hitPair = true
+            if (holeRanks[0] > maxBoardRank) hitTopPair = true // Overpair
         }
 
-        // Conteo de palos para Flush Draw
+        // 2. Color (Flush) y Proyecto de Color
         val suitCounts = allCards.groupBy { it.suit }
         val maxSuitCount = suitCounts.filterKeys { it != CardSuit.UNKNOWN }.values.maxOfOrNull { it.size } ?: 0
         val isFlush = maxSuitCount >= 5
         val isFlushDraw = maxSuitCount == 4
 
-        // Detección aproximada de outs
+        // 3. Escalera (Straight) con soporte de Rueda As-bajo (A-2-3-4-5)
+        val uniqueRanks = allCards.map { rankValue(it.rank) }.toSet()
+        val ranksWithAceLow = if (uniqueRanks.contains(14)) uniqueRanks + 1 else uniqueRanks
+        var straightHigh = 0
+        for (high in 14 downTo 5) {
+            if ((high downTo high - 4).all { ranksWithAceLow.contains(it) }) {
+                straightHigh = high
+                break
+            }
+        }
+        val isStraight = straightHigh > 0
+        val straightRanks = if (isStraight) (straightHigh downTo straightHigh - 4).map { if (it == 1) 14 else it }.toSet() else emptySet()
+        val heroContributesToStraight = holeRanks.any { it in straightRanks }
+
+        // 4. Proyectos de Escalera (OESD 8 outs vs Gutshot 4 outs)
+        var isOesd = false
+        var isGutshot = false
+        if (!isStraight) {
+            for (high in 13 downTo 5) {
+                val fourRun = (high downTo high - 3).toSet()
+                if (fourRun.all { ranksWithAceLow.contains(it) }) {
+                    val lowEnd = high - 4
+                    val highEnd = high + 1
+                    val canLow = lowEnd in 1..14
+                    val canHigh = highEnd in 2..14
+                    val hasHeroInRun = holeRanks.any { it in fourRun.map { r -> if (r == 1) 14 else r } }
+                    if (hasHeroInRun) {
+                        if (canLow && canHigh && lowEnd >= 2) {
+                            isOesd = true
+                            break
+                        } else if (canLow || canHigh) {
+                            isGutshot = true
+                        }
+                    }
+                }
+            }
+            if (!isOesd) {
+                for (high in 14 downTo 5) {
+                    val span = (high downTo high - 4).toSet()
+                    val intersection = span.filter { ranksWithAceLow.contains(it) }
+                    if (intersection.size == 4) {
+                        val hasHeroInSpan = holeRanks.any { it in intersection.map { r -> if (r == 1) 14 else r } }
+                        if (hasHeroInSpan) {
+                            isGutshot = true
+                            break
+                        }
+                    }
+                }
+            }
+        }
+
+        // 5. Conteo riguroso de Outs
         var outsCount = 0
         val outsDesc = mutableListOf<String>()
         if (isFlushDraw) {
             outsCount += 9
-            outsDesc.add("9 Flush")
+            outsDesc.add("9 Color")
         }
-        if (hitTopPair && !isFlush) {
+        if (isOesd) {
+            outsCount += 8
+            outsDesc.add("8 Escalera")
+        } else if (isGutshot) {
+            outsCount += 4
+            outsDesc.add("4 Gutshot")
+        }
+        if (hitTopPair && !isFlush && !isStraight) {
             outsCount += 5
             outsDesc.add("Top Pair")
-        }
-        if (hitSet) {
-            outsDesc.add("Set/Full")
+        } else if (hitPair && !isFlush && !isStraight) {
+            outsCount += 3
+            outsDesc.add("Pareja")
         }
 
+        val outsString = if (outsDesc.isNotEmpty()) outsDesc.joinToString(" + ") else "0 Outs"
+
+        // 6. Decisión GTO determinista
         return when {
+            fourOfAKind != null && holeRanks.contains(fourOfAKind) -> {
+                GtoDecision(GtoAction.ALL_IN, "MAX", "99%", "Nuts Poker", "Poker Conectado GTO")
+            }
+            isFullHouse && heroMatchesFullHouse -> {
+                GtoDecision(GtoAction.ALL_IN, "MAX", "97%", "Nuts Full", "Full House Conectado GTO")
+            }
             isFlush -> {
-                GtoDecision(GtoAction.ALL_IN, "MAX", "96%", "Nuts Flush", "Color Conectado")
+                GtoDecision(GtoAction.ALL_IN, "MAX", "94%", "Nuts Flush", "Color Conectado GTO")
+            }
+            isStraight && heroContributesToStraight -> {
+                GtoDecision(GtoAction.RAISE, "3.5x - 4x", "89%", "Escalera", "Escalera Conectada GTO")
             }
             hitSet -> {
-                GtoDecision(GtoAction.BET, "75% Pot", "88%", "Full House Outs", "Trío/Set Conectado GTO")
+                GtoDecision(GtoAction.BET, "75% Pot", "85%", "Full House Outs", "Trío/Set Conectado GTO")
             }
-            isFlushDraw && hitPair -> {
-                // Pareja + Proyecto de Color (Monstruo Draw)
-                GtoDecision(GtoAction.RAISE, "3.5x", "65%", "14 Outs (Color+Par)", "Combo Draw Agresivo")
+            isTwoPair -> {
+                if (isTopTwoPair) {
+                    GtoDecision(GtoAction.BET, "65% Pot", "78%", "Doble Pareja Top", "Doble Pareja Máxima GTO")
+                } else {
+                    GtoDecision(GtoAction.BET, "50% Pot", "72%", "Doble Pareja", "Doble Pareja GTO")
+                }
+            }
+            isFlushDraw && (hitPair || isOesd) -> {
+                GtoDecision(GtoAction.RAISE, "3.5x", "65%", "$outsCount Outs ($outsString)", "Combo Draw Monstruo GTO")
             }
             isFlushDraw -> {
                 GtoDecision(GtoAction.CALL, "1 Pot", "45%", "9 Outs (Color)", "Proyecto de Color GTO")
+            }
+            isOesd -> {
+                GtoDecision(GtoAction.CALL, "1x", "43%", "8 Outs (OESD)", "Proyecto de Escalera Abierta")
             }
             hitTopPair -> {
                 if (jugadores <= 3) {
@@ -194,14 +287,17 @@ object PokerGtoEngine {
                 }
             }
             hitPair -> {
-                GtoDecision(GtoAction.CHECK, "", "42%", "3 Outs", "Segunda Pareja / Pot Control")
+                GtoDecision(GtoAction.CHECK, "", "44%", "3 Outs", "Segunda Pareja / Pot Control")
+            }
+            isGutshot -> {
+                GtoDecision(GtoAction.CHECK, "", "36%", "4 Outs (Gutshot)", "Proyecto Gutshot Especulativo")
             }
             outsCount >= 8 -> {
-                GtoDecision(GtoAction.CALL, "1x", "38%", "$outsCount Outs", "Proyecto Fuerte")
+                GtoDecision(GtoAction.CALL, "1x", "40%", "$outsCount Outs", "Proyecto Fuerte GTO")
             }
             else -> {
                 if (fase.equals("River", ignoreCase = true)) {
-                    GtoDecision(GtoAction.FOLD, "", "12%", "0 Outs", "Sin mano en el River")
+                    GtoDecision(GtoAction.FOLD, "", "10%", "0 Outs", "Sin mano en el River")
                 } else {
                     GtoDecision(GtoAction.CHECK, "", "25%", "0 Outs", "Pasa o Foldea ante apuesta")
                 }

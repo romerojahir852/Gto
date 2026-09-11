@@ -388,7 +388,11 @@ class ScreenCaptureService : Service() {
 
         // Crop padding if necessary
         return if (rowPadding > 0) {
-            Bitmap.createBitmap(bitmap, 0, 0, image.width, image.height)
+            val cropped = Bitmap.createBitmap(bitmap, 0, 0, image.width, image.height)
+            if (cropped != bitmap) {
+                bitmap.recycle()
+            }
+            cropped
         } else {
             bitmap
         }

@@ -57,6 +57,8 @@ class FloatingOverlayManager(
     private var composeView: ComposeView? = null
     private var layoutParams: WindowManager.LayoutParams? = null
     private var isShowing = false
+    @Volatile
+    private var isAnalyzingHand = false
 
     // Single source of truth from PokerGameStateManager
     val hudState: StateFlow<HandState> = PokerGameStateManager.handState
@@ -171,6 +173,10 @@ class FloatingOverlayManager(
      * Trigger action when floating button is tapped
      */
     fun onTriggerClicked() {
+        if (isAnalyzingHand) {
+            Log.d(TAG, "Ignorando pulsación: análisis ya en curso")
+            return
+        }
         analizarPantalla()
     }
 
@@ -194,8 +200,14 @@ class FloatingOverlayManager(
      * 5. Evaluación de IA con timeout defensivo.
      */
     fun analizarPantalla() {
+        if (isAnalyzingHand) return
         scope.launch {
-            analizarPantallaConOcultamiento()
+            try {
+                isAnalyzingHand = true
+                analizarPantallaConOcultamiento()
+            } finally {
+                isAnalyzingHand = false
+            }
         }
     }
 

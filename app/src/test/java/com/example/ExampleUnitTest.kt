@@ -174,4 +174,98 @@ class ExampleUnitTest {
         )
         assertTrue(result.action == GtoAction.RAISE || result.action == GtoAction.THREE_BET || result.action == GtoAction.ALL_IN)
     }
+
+    @Test
+    fun `gto engine evaluates Straight and Wheel Straight with Ace-low correctly`() {
+        // Regular straight: Hero holds Jc 10s on Board 9d 8h 7c
+        val heroStraight = listOf(
+            com.example.data.PokerCard("J", com.example.data.CardSuit.CLUBS),
+            com.example.data.PokerCard("10", com.example.data.CardSuit.SPADES)
+        )
+        val boardStraight = listOf(
+            com.example.data.PokerCard("9", com.example.data.CardSuit.DIAMONDS),
+            com.example.data.PokerCard("8", com.example.data.CardSuit.HEARTS),
+            com.example.data.PokerCard("7", com.example.data.CardSuit.CLUBS)
+        )
+        val decision = com.example.data.PokerGtoEngine.calculate(
+            holeCards = heroStraight,
+            board = boardStraight,
+            jugadores = 6,
+            posicion = "BTN",
+            fase = "Flop"
+        )
+        assertEquals(GtoAction.RAISE, decision.action)
+        assertTrue(decision.explanation.contains("Escalera"))
+
+        // Wheel straight (A-2-3-4-5): Hero holds As 2d on Board 3c 4h 5s
+        val heroWheel = listOf(
+            com.example.data.PokerCard("A", com.example.data.CardSuit.SPADES),
+            com.example.data.PokerCard("2", com.example.data.CardSuit.DIAMONDS)
+        )
+        val boardWheel = listOf(
+            com.example.data.PokerCard("3", com.example.data.CardSuit.CLUBS),
+            com.example.data.PokerCard("4", com.example.data.CardSuit.HEARTS),
+            com.example.data.PokerCard("5", com.example.data.CardSuit.SPADES)
+        )
+        val wheelDecision = com.example.data.PokerGtoEngine.calculate(
+            holeCards = heroWheel,
+            board = boardWheel,
+            jugadores = 6,
+            posicion = "BTN",
+            fase = "Flop"
+        )
+        assertEquals(GtoAction.RAISE, wheelDecision.action)
+        assertTrue(wheelDecision.explanation.contains("Escalera"))
+    }
+
+    @Test
+    fun `gto engine evaluates Full House and Two Pair accurately`() {
+        // Full House: Hero holds Kh Kd on Board Ks 7c 7d
+        val heroFull = listOf(
+            com.example.data.PokerCard("K", com.example.data.CardSuit.HEARTS),
+            com.example.data.PokerCard("K", com.example.data.CardSuit.DIAMONDS)
+        )
+        val boardFull = listOf(
+            com.example.data.PokerCard("K", com.example.data.CardSuit.SPADES),
+            com.example.data.PokerCard("7", com.example.data.CardSuit.CLUBS),
+            com.example.data.PokerCard("7", com.example.data.CardSuit.DIAMONDS)
+        )
+        val fullDecision = com.example.data.PokerGtoEngine.calculate(
+            holeCards = heroFull,
+            board = boardFull,
+            jugadores = 4,
+            posicion = "BTN",
+            fase = "Flop"
+        )
+        assertEquals(GtoAction.ALL_IN, fullDecision.action)
+        assertTrue(fullDecision.explanation.contains("Full House"))
+
+        // Two Pair: Hero holds Ah Kd on Board As Kc 2s
+        val heroTwoPair = listOf(
+            com.example.data.PokerCard("A", com.example.data.CardSuit.HEARTS),
+            com.example.data.PokerCard("K", com.example.data.CardSuit.DIAMONDS)
+        )
+        val boardTwoPair = listOf(
+            com.example.data.PokerCard("A", com.example.data.CardSuit.SPADES),
+            com.example.data.PokerCard("K", com.example.data.CardSuit.CLUBS),
+            com.example.data.PokerCard("2", com.example.data.CardSuit.SPADES)
+        )
+        val twoPairDecision = com.example.data.PokerGtoEngine.calculate(
+            holeCards = heroTwoPair,
+            board = boardTwoPair,
+            jugadores = 4,
+            posicion = "BTN",
+            fase = "Flop"
+        )
+        assertEquals(GtoAction.BET, twoPairDecision.action)
+        assertTrue(twoPairDecision.explanation.contains("Doble Pareja"))
+    }
+
+    @Test
+    fun `parse poker numeric string handles noisy tokens with internal whitespace and symbols`() {
+        assertEquals(20700.0, com.example.service.LocalCardOcrDetector.parsePokerNumericString("20. 700") ?: 0.0, 0.01)
+        assertEquals(1022984.0, com.example.service.LocalCardOcrDetector.parsePokerNumericString("1 022 984") ?: 0.0, 0.01)
+        assertEquals(2596.0, com.example.service.LocalCardOcrDetector.parsePokerNumericString("$ 2,596") ?: 0.0, 0.01)
+        assertEquals(52.0, com.example.service.LocalCardOcrDetector.parsePokerNumericString("52 BB") ?: 0.0, 0.01)
+    }
 }
