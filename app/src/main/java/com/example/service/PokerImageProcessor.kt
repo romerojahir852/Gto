@@ -10,7 +10,7 @@ import android.util.Log
 /**
  * PokerImageProcessor: Motor de procesamiento visual multirresolución y realce de contraste.
  *
- * Genera vistas ópticas complementarias para modelos multimodales (Gemini 3.8 Flash):
+ * Genera vistas ópticas complementarias para modelos multimodales (Gemini 3.5 Flash-Lite):
  * 1. Vista Macro Panorámica: Mesa completa con asientos, fichas, botón Dealer y pozo.
  * 2. Vista Micro-Zoom Mesa: Recorte de alta densidad óptica de cartas comunitarias (Flop/Turn/River).
  * 3. Vista Micro-Zoom Hero: Recorte de alta densidad de las cartas de Hero en la mitad inferior (sin recortar esquinas).
@@ -27,7 +27,7 @@ object PokerImageProcessor {
     }
 
     /**
-     * Genera las 3 perspectivas ópticas para la visión multimodal de Gemini 3.8 Flash.
+     * Genera las 3 perspectivas ópticas para la visión multimodal de Gemini 3.5 Flash-Lite.
      */
     fun createMultiresolutionVisionParts(source: Bitmap): List<Bitmap> {
         val parts = mutableListOf<Bitmap>()

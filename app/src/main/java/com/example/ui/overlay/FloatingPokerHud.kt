@@ -361,10 +361,11 @@ fun FloatingPokerHud(
                             horizontalArrangement = Arrangement.spacedBy(3.dp)
                         ) {
                             if (!state.isLoading && state.latencyMs > 0) {
+                                val sec = String.format(java.util.Locale.US, "%.1fs", state.latencyMs / 1000.0)
                                 Text(
-                                    text = "⚡${state.latencyMs}ms",
-                                    color = if (state.latencyMs <= 1000) Color(0xFF00E676) else Color(0xFFFFD700),
-                                    fontSize = 8.5.sp,
+                                    text = "⚡$sec",
+                                    color = if (state.latencyMs <= 2500) Color(0xFF00E676) else if (state.latencyMs <= 6000) Color(0xFFFFD700) else Color(0xFFFF5252),
+                                    fontSize = 9.sp,
                                     fontWeight = FontWeight.Bold
                                 )
                             }
@@ -687,6 +688,47 @@ fun FloatingPokerHud(
                                             tint = if (showTableDetails) Color.Black else Color(0xFF94A3B8),
                                             modifier = Modifier.size(11.dp)
                                         )
+                                    }
+                                }
+                            }
+
+                            // Selector de Modelos de IA
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 2.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "IA:",
+                                    color = Color(0xFF94A3B8),
+                                    fontSize = 8.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+                                    com.example.data.GeminiModelRegistry.models.forEach { item ->
+                                        val isSelected = com.example.data.GeminiModelRegistry.selectedModelId == item.id
+                                        Surface(
+                                            shape = RoundedCornerShape(3.dp),
+                                            color = if (isSelected) Color(0xFF00E676) else Color(0xFF1E293B),
+                                            border = androidx.compose.foundation.BorderStroke(
+                                                0.5.dp,
+                                                if (isSelected) Color(0xFF00E676) else Color(0xFF334155)
+                                            ),
+                                            modifier = Modifier.clickable {
+                                                com.example.data.GeminiModelRegistry.selectedModelId = item.id
+                                                PokerGameStateManager.updateStatus("⚡ Modelo activo: ${item.shortName}")
+                                            }
+                                        ) {
+                                            Text(
+                                                text = item.shortName,
+                                                color = if (isSelected) Color.Black else Color(0xFFE2E8F0),
+                                                fontSize = 7.5.sp,
+                                                fontWeight = if (isSelected) FontWeight.Black else FontWeight.Medium,
+                                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+                                            )
+                                        }
                                     }
                                 }
                             }

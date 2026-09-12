@@ -31,14 +31,29 @@ import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 import java.io.ByteArrayOutputStream
 
+object GeminiModelRegistry {
+    data class ModelItem(val id: String, val shortName: String, val description: String)
+
+    val models = listOf(
+        ModelItem("gemini-3.1-flash-lite", "3.1 Lite", "⚡ 1.8s Ultra"),
+        ModelItem("gemini-3.5-flash-lite", "3.5 Lite", "🎯 3.2s Preciso"),
+        ModelItem("gemini-2.5-flash", "2.5 Flash", "🛡️ 4.0s"),
+        ModelItem("gemini-3.5-flash", "3.5 Flash", "🔬 5.5s"),
+        ModelItem("gemini-3-flash-preview", "3.0 Preview", "⚡ 3.3s")
+    )
+
+    @Volatile
+    var selectedModelId: String = "gemini-3.1-flash-lite"
+}
+
 class GeminiPokerRepository {
 
     companion object {
         private const val TAG = "GeminiPokerRepo"
         // 25000ms: tiempo óptimo para respuesta en redes móviles con latencia
         private const val TIMEOUT_MS = 25000L
-        private const val MAX_IMAGE_DIMENSION = 960
-        private const val JPEG_COMPRESSION_QUALITY = 88
+        private const val MAX_IMAGE_DIMENSION = 720
+        private const val JPEG_COMPRESSION_QUALITY = 72
         private const val ENDPOINT_BASE = "https://generativelanguage.googleapis.com/v1beta/models"
 
         @Volatile
@@ -46,16 +61,9 @@ class GeminiPokerRepository {
     }
 
     /**
-     * Modelos activos en Google AI Studio (2026).
-     * gemini-flash-lite-latest como primer modelo prioritario (~1.6s) para máxima fluidez en juego.
-     * gemini-3.8-flash y gemini-3.6-flash como respaldos analíticos.
+     * Modelos de alta velocidad y precisión multimodal probados en Google AI Studio (2026).
      */
-    private val candidateModels = listOf(
-        "gemini-flash-lite-latest",
-        "gemini-3.8-flash",
-        "gemini-3.6-flash",
-        "gemini-3.5-flash-lite"
-    )
+    private val candidateModels = GeminiModelRegistry.models.map { it.id }
 
     /**
      * OkHttp client con timeouts optimizados para baja latencia en redes móviles.
@@ -202,7 +210,7 @@ class GeminiPokerRepository {
                 val parsedState = parseSurgicalResponse(responseText, currentState, latency)
                 val hasCards = parsedState.cartasPropias.isNotEmpty() || parsedState.cartasComunitarias.isNotEmpty()
 
-                val modelLabel = "Gemini 3.8 Flash"
+                val modelLabel = callResult.modelUsed ?: "Gemini 3.5 Flash-Lite"
                 val cardsPart = if (hasCards) {
                     val heroStr = if (parsedState.cartasPropias.isNotEmpty()) parsedState.cartasPropias.joinToString(" ") { it.displayString } else "—"
                     val boardStr = if (parsedState.cartasComunitarias.isNotEmpty()) " | Mesa: ${parsedState.cartasComunitarias.joinToString(" ") { it.displayString }}" else ""
@@ -210,7 +218,8 @@ class GeminiPokerRepository {
                 } else {
                     "Mesa: ${parsedState.jugadores}j · BTN: ${parsedState.dealerPosition}"
                 }
-                val statusMsg = "⚡ $modelLabel: $cardsPart · ${latency}ms"
+                val sec = String.format(java.util.Locale.US, "%.1fs", latency / 1000.0)
+                val statusMsg = "⚡ $modelLabel: $cardsPart · $sec"
                 val finalParsed = parsedState.copy(statusMessage = statusMsg)
 
                 PokerGameStateManager.updateIncremental(
@@ -311,51 +320,54 @@ class GeminiPokerRepository {
         prompt: String,
         bitmap: Bitmap
     ): GeminiCallResult {
-        // Generar perspectivas multirresolución: Macro (Mesa), Zoom Mesa (Comunitarias), Zoom Hero (Cartas Propias)
-        val visionParts = com.example.service.PokerImageProcessor.createMultiresolutionVisionParts(bitmap)
-        try {
-            val base64Images = visionParts.map { part ->
-                val stream = ByteArrayOutputStream()
-                part.compress(Bitmap.CompressFormat.JPEG, JPEG_COMPRESSION_QUALITY, stream)
-                Base64.encodeToString(stream.toByteArray(), Base64.NO_WRAP)
-            }
+        // Enviar 1 sola imagen optimizada (exactamente igual que en el benchmark HTML ultrarrápido)
+        val optimized = optimizeBitmap(bitmap)
+        val stream = ByteArrayOutputStream()
+        optimized.compress(Bitmap.CompressFormat.JPEG, JPEG_COMPRESSION_QUALITY, stream)
+        val base64Image = Base64.encodeToString(stream.toByteArray(), Base64.NO_WRAP)
+        if (optimized != bitmap && !optimized.isRecycled) optimized.recycle()
 
-            var lastError: String? = null
+        var lastError: String? = null
 
-            // Cascada inteligente: si ya tenemos un modelo confirmado para esta API Key, se llama de inmediato
+            // Cascada inteligente: el modelo seleccionado por el usuario en el HUD se llama en 1er lugar
             val orderedModels = mutableListOf<String>()
-            val cached = lastSuccessfulModel
-            if (!cached.isNullOrBlank() && cached in candidateModels) {
-                orderedModels.add(cached)
-                orderedModels.addAll(candidateModels.filter { it != cached })
-            } else {
-                orderedModels.addAll(candidateModels)
+            val userPreferred = GeminiModelRegistry.selectedModelId
+            orderedModels.add(userPreferred)
+            for (m in GeminiModelRegistry.models.map { it.id }) {
+                if (m != userPreferred && m !in orderedModels) {
+                    orderedModels.add(m)
+                }
             }
 
             for (modelName in orderedModels) {
                 try {
                     val requestBody = buildJsonObject {
+                        put("system_instruction", buildJsonObject {
+                            put("parts", buildJsonArray {
+                                add(buildJsonObject {
+                                    put("text", prompt)
+                                })
+                            })
+                        })
                         put("contents", buildJsonArray {
                             add(buildJsonObject {
                                 put("parts", buildJsonArray {
                                     add(buildJsonObject {
-                                        put("text", prompt)
+                                        put("text", "Analiza la mesa de póker adjunta y responde estrictamente con el JSON de estado.")
                                     })
-                                    for (base64 in base64Images) {
-                                        add(buildJsonObject {
-                                            put("inlineData", buildJsonObject {
-                                                put("mimeType", "image/jpeg")
-                                                put("data", base64)
-                                            })
+                                    add(buildJsonObject {
+                                        put("inlineData", buildJsonObject {
+                                            put("mimeType", "image/jpeg")
+                                            put("data", base64Image)
                                         })
-                                    }
+                                    })
                                 })
                             })
                         })
                         put("generationConfig", buildJsonObject {
                             put("responseMimeType", "application/json")
-                            put("temperature", 0.1)
-                            put("maxOutputTokens", 2048)
+                            put("temperature", 0.0)
+                            put("maxOutputTokens", 1024)
                         })
                     }
 
@@ -449,9 +461,6 @@ class GeminiPokerRepository {
             }
 
             return GeminiCallResult(errorMessage = lastError ?: "Todos los modelos fallaron")
-        } finally {
-            visionParts.forEach { if (it != bitmap && !it.isRecycled) it.recycle() }
-        }
     }
 
     /**

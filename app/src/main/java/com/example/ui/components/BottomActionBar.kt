@@ -54,7 +54,7 @@ fun BottomActionBar(
                     letterSpacing = 0.5.sp
                 )
                 Text(
-                    text = "Gemini 3.8 Flash · Visión Óptica",
+                    text = "Gemini 3.5 Flash-Lite · Visión Óptica",
                     color = colors.textMuted,
                     fontSize = 11.sp,
                     letterSpacing = 0.08.sp

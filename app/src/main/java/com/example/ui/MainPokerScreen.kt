@@ -257,7 +257,7 @@ fun MainPokerScreen(
                                         color = Ink
                                     )
                                     Text(
-                                        text = "Visión multirresolución de alta fidelidad con Gemini 3.8 Flash",
+                                        text = "Visión multirresolución de alta fidelidad con Gemini 3.5 Flash-Lite",
                                         style = MaterialTheme.typography.bodySmall,
                                         color = Ink3
                                     )
